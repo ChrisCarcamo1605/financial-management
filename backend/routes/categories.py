@@ -11,22 +11,38 @@ categories_bp = Blueprint('categories', __name__)
 @token_required
 def get_categories(user_id, user_email):
     """
-    Obtener todas las categorías del usuario.
+    Obtener todas las categorías del usuario con paginación.
     Opcional: filtrar por tipo (income/expense).
-    
-    Query params: ?type=income|expense
-    Response: [{ "id", "name", "type", "color", "icon", "created_at" }]
+
+    Query params:
+        - type: income|expense
+        - page: int (default 1)
+        - per_page: int (default 50, max 200)
+
+    Response: { "data": [...], "total": X, "page": Y, "per_page": Z, "total_pages": N }
     """
     try:
-        query = Category.query.filter_by(user_id=user_id)
+        from utils.pagination import paginate_query
         
+        query = Category.query.filter_by(user_id=user_id)
+
         # Filtrar por tipo si se proporciona
         category_type = request.args.get('type')
         if category_type in ['income', 'expense']:
             query = query.filter_by(type=category_type)
+
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 50))
         
-        categories = query.order_by(Category.name).all()
-        return jsonify([category.to_dict() for category in categories]), 200
+        query = query.order_by(Category.name)
+        
+        return paginate_query(
+            query=query,
+            model_to_dict_fn=lambda cat: cat.to_dict(),
+            page=page,
+            per_page=per_page,
+            max_per_page=200
+        )
     except Exception as e:
         return jsonify({'error': f'Error fetching categories: {str(e)}'}), 500
 

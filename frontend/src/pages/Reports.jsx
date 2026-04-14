@@ -29,11 +29,11 @@ const Reports = () => {
     setLoading(true);
     try {
       const [transactionsRes, categoriesRes] = await Promise.all([
-        getTransactions(filters),
-        getCategories(),
+        getTransactions({ ...filters, limit: 500, offset: 0 }),
+        getCategories({ page: 1, per_page: 200 }),
       ]);
-      setTransactions(transactionsRes.data.transactions);
-      setCategories(categoriesRes.data);
+      setTransactions(transactionsRes.data.data || []);
+      setCategories(categoriesRes.data.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -139,24 +139,20 @@ const Reports = () => {
   };
 
   // Category breakdown
-  const categoryBreakdown = categories.map((cat) => {
+  const categoryBreakdown = Array.isArray(categories) ? categories.map((cat) => {
     const total = transactions
       .filter((t) => t.category_id === cat.id)
       .reduce((sum, t) => sum + t.amount, 0);
     return { ...cat, total };
-  }).filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
+  }).filter((c) => c.total > 0).sort((a, b) => b.total - a.total) : [];
 
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <h2>
-            <i className="bi bi-graph-up me-2"></i>
-            Reportes
-          </h2>
-          <p className="text-muted">Análisis básico y con pandas processing</p>
-        </Col>
-      </Row>
+    <Container fluid className="py-4" style={{ maxWidth: '1400px' }}>
+      <h2 className="mb-1 fw-bold">
+        <i className="bi bi-graph-up me-2"></i>
+        Reportes
+      </h2>
+      <p className="text-muted mb-4">Análisis básico y con pandas processing</p>
 
       <Row className="mb-4">
         <Col>
@@ -234,11 +230,11 @@ const Reports = () => {
                           <Row className="mb-4">
                             <Col md={6}>
                               <Card>
-                                <Card.Header>
+                                <Card.Header className="fw-semibold">
                                   <i className="bi bi-pie-chart me-2"></i>
                                   Gastos por Categoría
                                 </Card.Header>
-                                <Card.Body style={{ height: '350px' }}>
+                                <Card.Body style={{ height: '280px' }}>
                                   {Object.keys(expensesByCategory).length > 0 ? (
                                     <Chart type="doughnut" data={categoryChartData} />
                                   ) : (
@@ -256,7 +252,7 @@ const Reports = () => {
                                   <i className="bi bi-graph-up me-2"></i>
                                   Tendencia de Ingresos vs Gastos
                                 </Card.Header>
-                                <Card.Body style={{ height: '350px' }}>
+                                <Card.Body style={{ height: '280px' }}>
                                   {sortedTransactions.length > 0 ? (
                                     <Chart type="line" data={trendDataLocal} />
                                   ) : (
@@ -339,7 +335,7 @@ const Reports = () => {
                                       <i className="bi bi-cash-flow me-2"></i>
                                       Flujo de Caja (Pandas)
                                     </Card.Header>
-                                    <Card.Body style={{ height: '350px' }}>
+                                    <Card.Body style={{ height: '280px' }}>
                                       <WaterfallChart data={cashFlowData} />
                                     </Card.Body>
                                   </Card>
@@ -351,7 +347,7 @@ const Reports = () => {
                                       <i className="bi bi-pie-chart me-2"></i>
                                       Gastos por Categoría (Pandas)
                                     </Card.Header>
-                                    <Card.Body style={{ height: '350px' }}>
+                                    <Card.Body style={{ height: '280px' }}>
                                       {spendingData && spendingData.categories && spendingData.categories.length > 0 ? (
                                         <Chart
                                           type="doughnut"
@@ -387,7 +383,7 @@ const Reports = () => {
                                       <i className="bi bi-graph-up me-2"></i>
                                       Tendencias con Promedios Móviles (Pandas)
                                     </Card.Header>
-                                    <Card.Body style={{ height: '400px' }}>
+                                    <Card.Body style={{ height: '280px' }}>
                                       <TrendChart data={trendData} window={3} />
                                     </Card.Body>
                                   </Card>

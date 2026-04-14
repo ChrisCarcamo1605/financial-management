@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge, ProgressBar } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge } from 'react-bootstrap';
 import { getBudgets, getCategories, createBudget, updateBudget, deleteBudget } from '../services/api';
+import { PageHeader, LoadingSkeleton, EmptyState, CircularProgress, Pagination } from '../components/ui';
 
 const Budgets = () => {
   const [budgets, setBudgets] = useState([]);
@@ -16,22 +17,34 @@ const Budgets = () => {
     end_date: '',
   });
   const [error, setError] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const perPage = 20;
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(currentPage);
+  }, [currentPage]);
 
-  const fetchData = async () => {
+  const fetchData = async (page = 1) => {
     setLoading(true);
     try {
       const [budgetsRes, categoriesRes] = await Promise.all([
-        getBudgets(),
-        getCategories('expense'),
+        getBudgets({ page, per_page: perPage }),
+        getCategories({ type: 'expense', page: 1, per_page: 200 }),
       ]);
-      setBudgets(budgetsRes.data);
-      setCategories(categoriesRes.data);
+      console.log('Budgets loaded:', budgetsRes.data);
+      setBudgets(Array.isArray(budgetsRes.data.data) ? budgetsRes.data.data : []);
+      setTotalPages(budgetsRes.data.total_pages || 0);
+      setTotalItems(budgetsRes.data.total || 0);
+      setCategories(Array.isArray(categoriesRes.data.data) ? categoriesRes.data.data : []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      setError('Error loading budgets: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -79,7 +92,7 @@ const Budgets = () => {
       } else {
         await createBudget(formData);
       }
-      fetchData();
+      fetchData(currentPage);
       handleClose();
     } catch (err) {
       setError(err.response?.data?.error || 'Error saving budget');
@@ -90,7 +103,7 @@ const Budgets = () => {
     if (window.confirm('¿Estás seguro de eliminar este presupuesto?')) {
       try {
         await deleteBudget(id);
-        fetchData();
+        fetchData(currentPage);
       } catch (error) {
         console.error('Error deleting budget:', error);
       }
@@ -105,119 +118,174 @@ const Budgets = () => {
   };
 
   const getPeriodLabel = (period) => {
-    return period === 'monthly' ? 'Mensual' : 'Semanal';
+    return period === 'monthly' ? '/mes' : '/sem';
   };
 
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <h2>
-              <i className="bi bi-pie-chart me-2"></i>
-              Presupuestos
-            </h2>
-            <Button variant="primary" onClick={() => handleShow()}>
-              <i className="bi bi-plus-circle me-2"></i>
-              Nuevo Presupuesto
-            </Button>
-          </div>
-        </Col>
-      </Row>
+    <Container fluid className="py-4" style={{ maxWidth: '1400px' }}>
+      <PageHeader
+        title="Presupuestos"
+        subtitle="Controla tus límites de gasto"
+        icon="pie-chart"
+        actions={
+          <Button variant="primary" onClick={() => handleShow()}>
+            <i className="bi bi-plus-circle me-2"></i>
+            Nuevo Presupuesto
+          </Button>
+        }
+      />
 
-      <Row>
-        {budgets.map((budget) => (
-          <Col key={budget.id} md={6} className="mb-3">
-            <Card>
-              <Card.Body>
-                <div className="d-flex justify-content-between align-items-start mb-3">
-                  <div>
-                    <Card.Title>{budget.category_name}</Card.Title>
-                    <Badge bg="info" className="me-2">
-                      {getPeriodLabel(budget.period)}
-                    </Badge>
-                    <small className="text-muted">
-                      {new Date(budget.start_date).toLocaleDateString('es-ES')} - {new Date(budget.end_date).toLocaleDateString('es-ES')}
-                    </small>
-                  </div>
-                  <div>
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      className="me-1"
-                      onClick={() => handleShow(budget)}
-                    >
-                      <i className="bi bi-pencil"></i>
-                    </Button>
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => handleDelete(budget.id)}
-                    >
-                      <i className="bi bi-trash"></i>
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mb-2">
-                  <div className="d-flex justify-content-between mb-1">
-                    <span>Gastado: {formatCurrency(budget.spent)}</span>
-                    <span className={budget.percentage > 90 ? 'text-danger' : 'text-success'}>
-                      {budget.percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                  <ProgressBar
-                    now={budget.percentage}
-                    variant={budget.percentage > 90 ? 'danger' : budget.percentage > 70 ? 'warning' : 'success'}
-                    label={`${formatCurrency(budget.spent)} / ${formatCurrency(budget.amount)}`}
-                  />
-                </div>
-
-                <div className="d-flex justify-content-between">
-                  <small className="text-muted">
-                    Presupuesto: {formatCurrency(budget.amount)}
-                  </small>
-                  <small className={budget.remaining >= 0 ? 'text-success' : 'text-danger'}>
-                    {budget.remaining >= 0 ? 'Restante: ' : 'Excedido: '}
-                    {formatCurrency(Math.abs(budget.remaining))}
-                  </small>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      {budgets.length === 0 && !loading && (
-        <Row>
-          <Col>
-            <Card>
-              <Card.Body className="text-center py-5">
-                <i className="bi bi-inbox text-muted" style={{ fontSize: '3rem' }}></i>
-                <p className="mt-2 text-muted">No hay presupuestos registrados</p>
-                <Button variant="primary" onClick={() => handleShow()}>
-                  Crear Primer Presupuesto
-                </Button>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      )}
-
-      {loading && (
-        <div className="text-center py-5">
-          <div className="spinner-border text-primary" role="status" />
+      {error && (
+        <div className="alert alert-danger animate-shake mb-4">
+          <i className="bi bi-exclamation-triangle me-2"></i>
+          {error}
         </div>
       )}
 
-      <Modal show={showModal} onHide={handleClose} size="lg">
+      {loading ? (
+        <Row>
+          {[1, 2, 3, 4].map((i) => (
+            <Col key={i} md={6} className="mb-3">
+              <LoadingSkeleton type="card" count={1} />
+            </Col>
+          ))}
+        </Row>
+      ) : budgets.length > 0 ? (
+        <Row>
+          {Array.isArray(budgets) && budgets.map((budget, idx) => (
+            <Col key={budget.id} md={6} className="mb-3">
+              <Card
+                className="animate-fade-in-up h-100"
+                style={{ animationDelay: `${idx * 0.1}s` }}
+              >
+                <Card.Body>
+                  <div className="d-flex align-items-start gap-4">
+                    {/* Circular Progress */}
+                    <CircularProgress
+                      value={typeof budget.percentage === 'number' ? budget.percentage : 0}
+                      size={90}
+                      strokeWidth={10}
+                      color="auto"
+                    />
+
+                    <div className="flex-grow-1">
+                      <div className="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                          <Card.Title className="mb-1" style={{ fontWeight: 600 }}>
+                            {budget.category_name}
+                          </Card.Title>
+                          <Badge 
+                            bg="transparent"
+                            style={{
+                              color: 'var(--primary-600)',
+                              backgroundColor: 'var(--primary-50)',
+                              fontWeight: 500,
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: 'var(--radius-full)',
+                              fontSize: '0.6875rem',
+                            }}
+                          >
+                            {getPeriodLabel(budget.period)}
+                          </Badge>
+                        </div>
+                        
+                        <div className="d-flex gap-1">
+                          <Button
+                            variant="light"
+                            size="sm"
+                            className="p-2"
+                            onClick={() => handleShow(budget)}
+                            style={{ borderRadius: 'var(--radius-md)' }}
+                          >
+                            <i className="bi bi-pencil"></i>
+                          </Button>
+                          <Button
+                            variant="light"
+                            size="sm"
+                            className="p-2 text-danger"
+                            onClick={() => handleDelete(budget.id)}
+                            style={{ borderRadius: 'var(--radius-md)' }}
+                          >
+                            <i className="bi bi-trash"></i>
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Progress details */}
+                      <div className="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                          <p className="text-muted mb-1" style={{ fontSize: '0.75rem' }}>
+                            Gastado
+                          </p>
+                          <p className="mb-0 mono fw-bold" style={{ fontSize: '1.125rem' }}>
+                            {formatCurrency(budget.spent)}
+                          </p>
+                        </div>
+                        <div className="text-end">
+                          <p className="text-muted mb-1" style={{ fontSize: '0.75rem' }}>
+                            Presupuesto
+                          </p>
+                          <p className="mb-0 mono" style={{ fontSize: '1.125rem', color: 'var(--slate-500)' }}>
+                            {formatCurrency(budget.amount)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Remaining */}
+                      <div className="mt-2">
+                        <small 
+                          className={budget.remaining >= 0 ? 'text-success' : 'text-danger'}
+                          style={{ fontWeight: 500 }}
+                        >
+                          {budget.remaining >= 0 ? '✓ Restante: ' : '⚠ Excedido: '}
+                          {formatCurrency(Math.abs(budget.remaining))}
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      ) : (
+        <EmptyState
+          icon="pie-chart"
+          title="No hay presupuestos"
+          description="Crea tu primer presupuesto para controlar tus gastos"
+          actionLabel="Nuevo Presupuesto"
+          onAction={() => handleShow()}
+        />
+      )}
+
+      {/* Pagination */}
+      {!loading && budgets.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={totalItems}
+          perPage={perPage}
+        />
+      )}
+
+      {/* Modal */}
+      <Modal show={showModal} onHide={handleClose} centered>
         <Form onSubmit={handleSubmit}>
-          <Modal.Header closeButton>
-            <Modal.Title>
+          <Modal.Header closeButton style={{ 
+            backgroundColor: isDark ? '#1e293b' : 'white',
+            borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`
+          }}>
+            <Modal.Title style={{ 
+              color: isDark ? '#f1f5f9' : '#0f172a',
+              fontWeight: 600
+            }}>
               {editingBudget ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}
             </Modal.Title>
           </Modal.Header>
-          <Modal.Body>
+          <Modal.Body style={{ 
+            backgroundColor: isDark ? '#1e293b' : 'white'
+          }}>
             {error && <Alert variant="danger">{error}</Alert>}
             <Row>
               <Col md={6}>
@@ -229,7 +297,7 @@ const Budgets = () => {
                     required
                   >
                     <option value="">Seleccionar categoría</option>
-                    {categories.map((cat) => (
+                    {Array.isArray(categories) && categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.name}
                       </option>
@@ -290,8 +358,11 @@ const Budgets = () => {
               </Col>
             </Row>
           </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
+          <Modal.Footer style={{ 
+            backgroundColor: isDark ? '#1e293b' : 'white',
+            borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`
+          }}>
+            <Button variant="light" onClick={handleClose}>
               Cancelar
             </Button>
             <Button variant="primary" type="submit">

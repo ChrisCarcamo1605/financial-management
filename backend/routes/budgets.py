@@ -4,6 +4,7 @@ from models.category import Category
 from models import db
 from utils.decorators import token_required
 from datetime import date, datetime
+from decimal import Decimal
 
 budgets_bp = Blueprint('budgets', __name__)
 
@@ -12,14 +13,30 @@ budgets_bp = Blueprint('budgets', __name__)
 @token_required
 def get_budgets(user_id, user_email):
     """
-    Obtener todos los presupuestos del usuario.
+    Obtener todos los presupuestos del usuario con paginación.
     Incluye información de gastos y porcentaje usado.
-    
-    Response: [{ "id", "category_id", "amount", "period", "start_date", "end_date", "category_name", "spent", "remaining", "percentage" }]
+
+    Query params:
+        - page: int (default 1)
+        - per_page: int (default 20, max 100)
+
+    Response: { "data": [...], "total": X, "page": Y, "per_page": Z, "total_pages": N }
     """
     try:
-        budgets = Budget.query.filter_by(user_id=user_id).order_by(Budget.start_date.desc()).all()
-        return jsonify([budget.to_dict_full() for budget in budgets]), 200
+        from utils.pagination import paginate_query
+        
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 20))
+        
+        query = Budget.query.filter_by(user_id=user_id).order_by(Budget.start_date.desc())
+        
+        return paginate_query(
+            query=query,
+            model_to_dict_fn=lambda budget: budget.to_dict_full(),
+            page=page,
+            per_page=per_page,
+            max_per_page=100
+        )
     except Exception as e:
         return jsonify({'error': f'Error fetching budgets: {str(e)}'}), 500
 
@@ -69,7 +86,7 @@ def create_budget(user_id, user_email):
         budget = Budget(
             user_id=user_id,
             category_id=data['category_id'],
-            amount=float(data['amount']),
+            amount=Decimal(str(data['amount'])),
             period=data['period'],
             start_date=start_date,
             end_date=end_date
@@ -115,7 +132,7 @@ def update_budget(user_id, user_email, budget_id):
             budget.category_id = data['category_id']
         
         if 'amount' in data:
-            budget.amount = float(data['amount'])
+            budget.amount = Decimal(str(data['amount']))
         
         if 'period' in data:
             budget.period = data['period']

@@ -106,21 +106,21 @@ class AnalyticsService:
     def get_cash_flow_analysis(user_id, start_date=None, end_date=None, group_by='month'):
         """
         Analyze cash flow (income vs expenses) over time.
-        
+
         Args:
             group_by: 'day', 'week', 'month', 'quarter', 'year'
-            
+
         Returns:
             dict with cash flow time series data
         """
         df = AnalyticsService.get_transactions_dataframe(user_id, start_date, end_date)
-        
+
         if df.empty:
             return {'cash_flow': [], 'summary': {}}
-        
+
         # Set date as index for resampling
         df = df.set_index('date')
-        
+
         # Pivot by type
         pivot_df = df.pivot_table(
             values='amount',
@@ -128,7 +128,7 @@ class AnalyticsService:
             columns='type',
             aggfunc='sum'
         ).fillna(0)
-        
+
         # Resample based on group_by parameter
         freq_map = {
             'day': 'D',
@@ -138,36 +138,35 @@ class AnalyticsService:
             'year': 'YE'
         }
         freq = freq_map.get(group_by, 'ME')
-        
+
         resampled_df = pivot_df.resample(freq).sum()
-        
-        # Calculate net flow
-        resampled_df['net'] = resampled_df.get('income', 0) - resampled_df.get('expense', 0)
-        resampled_df['cumulative'] = resampled_df['net'].cumsum()
-        
-        # Reset index and convert to dict
-        resampled_df = resampled_df.reset_index()
-        resampled_df.rename(columns={'index': 'date'}, inplace=True)
-        
+
         # Ensure income and expense columns exist
         if 'income' not in resampled_df.columns:
             resampled_df['income'] = 0
         if 'expense' not in resampled_df.columns:
             resampled_df['expense'] = 0
-        
-        cash_flow = resampled_df.to_dict('records')
-        
+
+        # Calculate net flow
+        resampled_df['net'] = resampled_df['income'] - resampled_df['expense']
+        resampled_df['cumulative'] = resampled_df['net'].cumsum()
+
+        # Reset index and convert to dict
+        resampled_df = resampled_df.reset_index()
+        resampled_df.rename(columns={'index': 'date'}, inplace=True)
+
         # Convert dates to ISO format
+        cash_flow = resampled_df.to_dict('records')
         for item in cash_flow:
             if isinstance(item.get('date'), (datetime, pd.Timestamp)):
                 item['date'] = item['date'].isoformat()
-        
+
         # Summary statistics
         total_income = resampled_df['income'].sum()
         total_expense = resampled_df['expense'].sum()
         net_flow = total_income - total_expense
         savings_rate = (net_flow / total_income * 100) if total_income > 0 else 0
-        
+
         return {
             'cash_flow': cash_flow,
             'summary': {
@@ -184,21 +183,21 @@ class AnalyticsService:
     def get_trend_analysis(user_id, start_date=None, end_date=None, window=3):
         """
         Calculate trends with moving averages.
-        
+
         Args:
             window: Moving average window (in periods)
-            
+
         Returns:
             dict with trend data including moving averages
         """
         df = AnalyticsService.get_transactions_dataframe(user_id, start_date, end_date)
-        
+
         if df.empty:
             return {'trends': [], 'insights': {}}
-        
+
         # Set date as index
         df = df.set_index('date')
-        
+
         # Pivot by type for separate income/expense tracking
         pivot_df = df.pivot_table(
             values='amount',
@@ -206,34 +205,45 @@ class AnalyticsService:
             columns='type',
             aggfunc='sum'
         ).fillna(0).resample('ME').sum()
-        
+
+        # Ensure income and expense columns exist (in case one type is missing)
+        if 'income' not in pivot_df.columns:
+            pivot_df['income'] = 0
+        if 'expense' not in pivot_df.columns:
+            pivot_df['expense'] = 0
+
         # Calculate net
-        pivot_df['net'] = pivot_df.get('income', 0) - pivot_df.get('expense', 0)
-        
+        pivot_df['net'] = pivot_df['income'] - pivot_df['expense']
+
         # Calculate moving averages
-        pivot_df[f'income_ma{window}'] = pivot_df.get('income', 0).rolling(window=window, min_periods=1).mean()
-        pivot_df[f'expense_ma{window}'] = pivot_df.get('expense', 0).rolling(window=window, min_periods=1).mean()
+        pivot_df[f'income_ma{window}'] = pivot_df['income'].rolling(window=window, min_periods=1).mean()
+        pivot_df[f'expense_ma{window}'] = pivot_df['expense'].rolling(window=window, min_periods=1).mean()
         pivot_df[f'net_ma{window}'] = pivot_df['net'].rolling(window=window, min_periods=1).mean()
-        
+
         # Calculate growth rates
-        pivot_df['income_growth'] = pivot_df.get('income', 0).pct_change() * 100
-        pivot_df['expense_growth'] = pivot_df.get('expense', 0).pct_change() * 100
-        
+        pivot_df['income_growth'] = pivot_df['income'].pct_change() * 100
+        pivot_df['expense_growth'] = pivot_df['expense'].pct_change() * 100
+
         # Reset index
         pivot_df = pivot_df.reset_index()
         pivot_df.rename(columns={'index': 'date'}, inplace=True)
-        
+
         # Convert to list
         trends = pivot_df.to_dict('records')
-        
-        # Convert dates
+
+        # Convert dates and replace NaN with null for valid JSON serialization
         for item in trends:
             if isinstance(item.get('date'), (datetime, pd.Timestamp)):
                 item['date'] = item['date'].isoformat()
-        
+            # Replace NaN/Inf with None (null in JSON)
+            for key, value in item.items():
+                if isinstance(value, float):
+                    if pd.isna(value) or np.isinf(value):
+                        item[key] = None
+
         # Generate insights
         insights = AnalyticsService._generate_insights(df, pivot_df)
-        
+
         return {
             'trends': trends,
             'insights': insights
@@ -325,25 +335,26 @@ class AnalyticsService:
     def get_spending_heatmap(user_id, start_date=None, end_date=None):
         """
         Create spending pattern heatmap data (day of week vs week number).
-        
+
         Returns:
             dict with heatmap data
         """
         df = AnalyticsService.get_transactions_dataframe(user_id, start_date, end_date)
-        
+
         if df.empty:
-            return {'heatmap': []}
-        
+            return {'heatmap': [], 'columns': []}
+
         expenses_df = df[df['type'] == 'expense'].copy()
-        
+
         if expenses_df.empty:
-            return {'heatmap': []}
-        
-        # Extract day of week
+            return {'heatmap': [], 'columns': []}
+
+        # Extract day of week and week number
         expenses_df = expenses_df.copy()
         expenses_df['day_of_week'] = expenses_df['date'].dt.day_name()
-        expenses_df['week_number'] = expenses_df['date'].dt.isocalendar().week
-        
+        # Convert week to int to avoid numpy type issues
+        expenses_df['week_number'] = expenses_df['date'].dt.isocalendar().week.astype(int)
+
         # Create pivot table: day of week vs week number
         heatmap_df = expenses_df.pivot_table(
             values='amount',
@@ -352,19 +363,21 @@ class AnalyticsService:
             aggfunc='sum',
             fill_value=0
         )
-        
+
         # Order days properly
         day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         heatmap_df = heatmap_df.reindex(day_order)
-        
+
         # Convert to format suitable for frontend
         heatmap_data = []
         for day in day_order:
             if day in heatmap_df.index:
                 row = {'day': day}
-                row.update(heatmap_df.loc[day].to_dict())
+                # Convert all values to float to ensure JSON serializable
+                for col in heatmap_df.columns:
+                    row[str(col)] = float(heatmap_df.loc[day, col])
                 heatmap_data.append(row)
-        
+
         return {
             'heatmap': heatmap_data,
             'columns': [int(c) for c in heatmap_df.columns]
@@ -374,34 +387,38 @@ class AnalyticsService:
     def _generate_insights(df, pivot_df):
         """Generate analytical insights from data."""
         insights = {}
-        
+
         # Overall trends
         if len(pivot_df) >= 2:
-            recent_income = pivot_df.iloc[-1].get('income', 0)
-            previous_income = pivot_df.iloc[-2].get('income', 0) if len(pivot_df) >= 2 else 0
-            
-            if previous_income > 0:
-                income_change = ((recent_income - previous_income) / previous_income) * 100
-                insights['income_trend'] = 'increasing' if income_change > 5 else ('decreasing' if income_change < -5 else 'stable')
-                insights['income_change_pct'] = round(float(income_change), 2)
-        
+            # Ensure columns exist
+            if 'income' in pivot_df.columns:
+                recent_income = pivot_df.iloc[-1].get('income', 0)
+                previous_income = pivot_df.iloc[-2].get('income', 0) if len(pivot_df) >= 2 else 0
+
+                if previous_income > 0:
+                    income_change = ((recent_income - previous_income) / previous_income) * 100
+                    insights['income_trend'] = 'increasing' if income_change > 5 else ('decreasing' if income_change < -5 else 'stable')
+                    insights['income_change_pct'] = round(float(income_change), 2)
+
         # Top spending category
-        expenses_df = df[df['type'] == 'expense']
+        expenses_df = df[df['type'] == 'expense'] if 'type' in df.columns else pd.DataFrame()
         if not expenses_df.empty:
             top_category = expenses_df.groupby('category_name')['amount'].sum().idxmax()
             top_category_amount = expenses_df.groupby('category_name')['amount'].sum().max()
             insights['top_spending_category'] = str(top_category)
             insights['top_category_amount'] = float(top_category_amount)
-        
+
         # Savings rate
-        total_income = df[df['type'] == 'income']['amount'].sum()
-        total_expenses = df[df['type'] == 'expense']['amount'].sum()
+        income_series = df[df['type'] == 'income']['amount'] if 'type' in df.columns else pd.Series()
+        expense_series = df[df['type'] == 'expense']['amount'] if 'type' in df.columns else pd.Series()
+        total_income = income_series.sum()
+        total_expenses = expense_series.sum()
         if total_income > 0:
             savings_rate = ((total_income - total_expenses) / total_income) * 100
             insights['savings_rate'] = round(float(savings_rate), 2)
-        
+
         # Transaction patterns
         insights['total_transactions'] = int(len(df))
         insights['avg_transaction_size'] = round(float(df['amount'].mean()), 2) if len(df) > 0 else 0
-        
+
         return insights

@@ -6,6 +6,7 @@ from models import db
 from utils.decorators import token_required
 from datetime import datetime, date
 from sqlalchemy import func
+from decimal import Decimal
 
 transactions_bp = Blueprint('transactions', __name__)
 
@@ -14,59 +15,61 @@ transactions_bp = Blueprint('transactions', __name__)
 @token_required
 def get_transactions(user_id, user_email):
     """
-    Obtener todas las transacciones del usuario con filtros opcionales.
-    
+    Obtener todas las transacciones del usuario con filtros opcionales y paginación.
+
     Query params:
         - type: income|expense
         - category_id: int
         - account_id: int
         - start_date: YYYY-MM-DD
         - end_date: YYYY-MM-DD
-        - limit: int (default 100)
+        - limit: int (default 100, max 500)
         - offset: int (default 0)
-    
-    Response: { "transactions": [...], "total": X }
+
+    Response: { "data": [...], "total": X, "limit": Y, "offset": Z }
     """
     try:
         query = Transaction.query.filter_by(user_id=user_id)
-        
+
         # Aplicar filtros
         transaction_type = request.args.get('type')
         if transaction_type in ['income', 'expense']:
             query = query.filter_by(type=transaction_type)
-        
+
         category_id = request.args.get('category_id')
         if category_id:
             query = query.filter_by(category_id=int(category_id))
-        
+
         account_id = request.args.get('account_id')
         if account_id:
             query = query.filter_by(account_id=int(account_id))
-        
+
         start_date = request.args.get('start_date')
         if start_date:
             query = query.filter(Transaction.date >= date.fromisoformat(start_date))
-        
+
         end_date = request.args.get('end_date')
         if end_date:
             query = query.filter(Transaction.date <= date.fromisoformat(end_date))
-        
+
         # Obtener total antes de paginación
         total = query.count()
-        
+
         # Ordenar y paginar
         limit = min(int(request.args.get('limit', 100)), 500)  # Max 500
         offset = int(request.args.get('offset', 0))
-        
+
         transactions = query\
             .order_by(Transaction.date.desc())\
             .limit(limit)\
             .offset(offset)\
             .all()
-        
+
         return jsonify({
-            'transactions': [t.to_dict_with_relations() for t in transactions],
-            'total': total
+            'data': [t.to_dict_with_relations() for t in transactions],
+            'total': total,
+            'limit': limit,
+            'offset': offset
         }), 200
     except ValueError as e:
         return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
@@ -114,17 +117,18 @@ def create_transaction(user_id, user_email):
             user_id=user_id,
             account_id=data['account_id'],
             category_id=data['category_id'],
-            amount=float(data['amount']),
+            amount=Decimal(str(data['amount'])),
             type=data['type'],
             description=data.get('description'),
             date=date.fromisoformat(data['date']) if isinstance(data['date'], str) else data['date']
         )
-        
+
         # Actualizar balance de la cuenta
+        amount = Decimal(str(data['amount']))
         if data['type'] == 'income':
-            account.balance += float(data['amount'])
+            account.balance += amount
         else:
-            account.balance -= float(data['amount'])
+            account.balance -= amount
         
         db.session.add(transaction)
         db.session.commit()
@@ -163,42 +167,42 @@ def update_transaction(user_id, user_email, transaction_id):
         old_account = Account.query.filter_by(id=transaction.account_id, user_id=user_id).first()
         if old_account:
             if transaction.type == 'income':
-                old_account.balance -= float(transaction.amount)
+                old_account.balance -= transaction.amount
             else:
-                old_account.balance += float(transaction.amount)
-        
+                old_account.balance += transaction.amount
+
         # Actualizar campos
         if 'account_id' in data:
             account = Account.query.filter_by(id=data['account_id'], user_id=user_id).first()
             if not account:
                 return jsonify({'error': 'Account not found'}), 404
             transaction.account_id = data['account_id']
-        
+
         if 'category_id' in data:
             category = Category.query.filter_by(id=data['category_id'], user_id=user_id).first()
             if not category:
                 return jsonify({'error': 'Category not found'}), 404
             transaction.category_id = data['category_id']
-        
+
         if 'amount' in data:
-            transaction.amount = float(data['amount'])
-        
+            transaction.amount = Decimal(str(data['amount']))
+
         if 'type' in data:
             transaction.type = data['type']
-        
+
         if 'description' in data:
             transaction.description = data['description']
-        
+
         if 'date' in data:
             transaction.date = date.fromisoformat(data['date']) if isinstance(data['date'], str) else data['date']
-        
+
         # Aplicar nuevo balance
         current_account = Account.query.filter_by(id=transaction.account_id, user_id=user_id).first()
         if current_account:
             if transaction.type == 'income':
-                current_account.balance += float(transaction.amount)
+                current_account.balance += transaction.amount
             else:
-                current_account.balance -= float(transaction.amount)
+                current_account.balance -= transaction.amount
         
         db.session.commit()
         
@@ -229,9 +233,9 @@ def delete_transaction(user_id, user_email, transaction_id):
         account = Account.query.filter_by(id=transaction.account_id, user_id=user_id).first()
         if account:
             if transaction.type == 'income':
-                account.balance -= float(transaction.amount)
+                account.balance -= transaction.amount
             else:
-                account.balance += float(transaction.amount)
+                account.balance += transaction.amount
         
         db.session.delete(transaction)
         db.session.commit()

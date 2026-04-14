@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Form, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge } from 'react-bootstrap';
 import { getAccounts, createAccount, updateAccount, deleteAccount } from '../services/api';
+import { PageHeader, LoadingSkeleton, EmptyState, Pagination } from '../components/ui';
 
 const Accounts = () => {
   const [accounts, setAccounts] = useState([]);
@@ -13,16 +14,26 @@ const Accounts = () => {
     currency: 'USD',
   });
   const [error, setError] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const perPage = 20;
+  
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
   useEffect(() => {
-    fetchAccounts();
-  }, []);
+    fetchAccounts(currentPage);
+  }, [currentPage]);
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = async (page = 1) => {
     setLoading(true);
     try {
-      const response = await getAccounts();
-      setAccounts(response.data);
+      const response = await getAccounts({ page, per_page: perPage });
+      setAccounts(response.data.data);
+      setTotalPages(response.data.total_pages);
+      setTotalItems(response.data.total);
     } catch (error) {
       console.error('Error fetching accounts:', error);
     } finally {
@@ -61,7 +72,7 @@ const Accounts = () => {
       } else {
         await createAccount(formData);
       }
-      fetchAccounts();
+      fetchAccounts(currentPage);
       handleClose();
     } catch (err) {
       setError(err.response?.data?.error || 'Error saving account');
@@ -72,7 +83,7 @@ const Accounts = () => {
     if (window.confirm('¿Estás seguro de eliminar esta cuenta? Se eliminarán también las transacciones asociadas.')) {
       try {
         await deleteAccount(id);
-        fetchAccounts();
+        fetchAccounts(currentPage);
       } catch (error) {
         console.error('Error deleting account:', error);
       }
@@ -86,91 +97,156 @@ const Accounts = () => {
     }).format(amount);
   };
 
+  const currencyIcons = {
+    USD: 'currency-dollar',
+    EUR: 'currency-euro',
+    MXN: 'cash-coin',
+    ARS: 'cash-coin',
+    COP: 'cash-coin',
+  };
+
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <h2>
-              <i className="bi bi-bank me-2"></i>
-              Cuentas
-            </h2>
-            <Button variant="primary" onClick={() => handleShow()}>
-              <i className="bi bi-plus-circle me-2"></i>
-              Nueva Cuenta
-            </Button>
-          </div>
-        </Col>
-      </Row>
+    <Container fluid className="py-4" style={{ maxWidth: '1400px' }}>
+      <PageHeader
+        title="Cuentas"
+        subtitle="Gestiona tus cuentas bancarias"
+        icon="bank"
+        actions={
+          <Button variant="primary" onClick={() => handleShow()}>
+            <i className="bi bi-plus-circle me-2"></i>
+            Nueva Cuenta
+          </Button>
+        }
+      />
 
-      <Row>
-        {accounts.map((account) => (
-          <Col key={account.id} md={4} className="mb-3">
-            <Card>
-              <Card.Body>
-                <div className="d-flex justify-content-between align-items-start">
-                  <div>
-                    <Card.Title>{account.name}</Card.Title>
-                    <Card.Text className="text-muted small">{account.currency}</Card.Text>
-                  </div>
-                  <div>
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      className="me-1"
-                      onClick={() => handleShow(account)}
-                    >
-                      <i className="bi bi-pencil"></i>
-                    </Button>
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => handleDelete(account.id)}
-                    >
-                      <i className="bi bi-trash"></i>
-                    </Button>
-                  </div>
-                </div>
-                <hr />
-                <h3 className={`mb-0 ${account.balance >= 0 ? 'text-success' : 'text-danger'}`}>
-                  {formatCurrency(account.balance)}
-                </h3>
-              </Card.Body>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      {accounts.length === 0 && !loading && (
+      {loading ? (
         <Row>
-          <Col>
-            <Card>
-              <Card.Body className="text-center py-5">
-                <i className="bi bi-inbox text-muted" style={{ fontSize: '3rem' }}></i>
-                <p className="mt-2 text-muted">No hay cuentas registradas</p>
-                <Button variant="primary" onClick={() => handleShow()}>
-                  Crear Primera Cuenta
-                </Button>
-              </Card.Body>
-            </Card>
-          </Col>
+          {[1, 2, 3].map((i) => (
+            <Col key={i} md={4} className="mb-3">
+              <LoadingSkeleton type="card" count={1} />
+            </Col>
+          ))}
         </Row>
+      ) : accounts.length > 0 ? (
+        <Row>
+          {Array.isArray(accounts) && accounts.map((account, idx) => (
+            <Col key={account.id} md={4} sm={6} className="mb-3">
+              <Card
+                className="animate-fade-in-up h-100"
+                style={{ animationDelay: `${idx * 0.1}s` }}
+              >
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-start mb-3">
+                    <div className="d-flex align-items-center gap-3">
+                      <div
+                        style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: 'var(--radius-lg)',
+                          background: account.balance >= 0 ? 'var(--gradient-success)' : 'var(--gradient-danger)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontSize: '1.25rem',
+                          boxShadow: account.balance >= 0 
+                            ? '0 4px 12px rgba(16, 185, 129, 0.3)' 
+                            : '0 4px 12px rgba(244, 63, 94, 0.3)',
+                        }}
+                      >
+                        <i className={`bi bi-${currencyIcons[account.currency] || 'wallet2'}`}></i>
+                      </div>
+                      <div>
+                        <Card.Title className="mb-0" style={{ fontWeight: 600 }}>
+                          {account.name}
+                        </Card.Title>
+                        <Badge 
+                          bg="transparent"
+                          style={{
+                            color: 'var(--slate-500)',
+                            backgroundColor: 'var(--slate-100)',
+                            fontWeight: 500,
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: '0.6875rem',
+                          }}
+                        >
+                          {account.currency}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="d-flex gap-1">
+                      <Button
+                        variant="light"
+                        size="sm"
+                        className="p-2"
+                        onClick={() => handleShow(account)}
+                        style={{ borderRadius: 'var(--radius-md)' }}
+                      >
+                        <i className="bi bi-pencil"></i>
+                      </Button>
+                      <Button
+                        variant="light"
+                        size="sm"
+                        className="p-2 text-danger"
+                        onClick={() => handleDelete(account.id)}
+                        style={{ borderRadius: 'var(--radius-md)' }}
+                      >
+                        <i className="bi bi-trash"></i>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <hr />
+
+                  <div className="text-end">
+                    <p className="text-muted mb-1" style={{ fontSize: '0.75rem' }}>Balance</p>
+                    <h3 className={`mb-0 mono ${account.balance >= 0 ? 'text-success' : 'text-danger'}`} style={{ fontWeight: 700 }}>
+                      {formatCurrency(account.balance)}
+                    </h3>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      ) : (
+        <EmptyState
+          icon="bank"
+          title="No hay cuentas"
+          description="Agrega tu primera cuenta bancaria para comenzar"
+          actionLabel="Nueva Cuenta"
+          onAction={() => handleShow()}
+        />
       )}
 
-      {loading && (
-        <div className="text-center py-5">
-          <div className="spinner-border text-primary" role="status" />
-        </div>
+      {/* Pagination */}
+      {!loading && accounts.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={totalItems}
+          perPage={perPage}
+        />
       )}
 
-      <Modal show={showModal} onHide={handleClose}>
+      <Modal show={showModal} onHide={handleClose} centered>
         <Form onSubmit={handleSubmit}>
-          <Modal.Header closeButton>
-            <Modal.Title>
+          <Modal.Header closeButton style={{ 
+            backgroundColor: isDark ? '#1e293b' : 'white',
+            borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`
+          }}>
+            <Modal.Title style={{ 
+              color: isDark ? '#f1f5f9' : '#0f172a',
+              fontWeight: 600
+            }}>
               {editingAccount ? 'Editar Cuenta' : 'Nueva Cuenta'}
             </Modal.Title>
           </Modal.Header>
-          <Modal.Body>
+          <Modal.Body style={{ 
+            backgroundColor: isDark ? '#1e293b' : 'white'
+          }}>
             {error && <Alert variant="danger">{error}</Alert>}
             <Form.Group className="mb-3">
               <Form.Label>Nombre</Form.Label>
@@ -207,8 +283,11 @@ const Accounts = () => {
               </Form.Select>
             </Form.Group>
           </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
+          <Modal.Footer style={{ 
+            backgroundColor: isDark ? '#1e293b' : 'white',
+            borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`
+          }}>
+            <Button variant="light" onClick={handleClose}>
               Cancelar
             </Button>
             <Button variant="primary" type="submit">

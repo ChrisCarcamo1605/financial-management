@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\www\financial-management\backend\app.py", line 250, in <module>
+    print("   \033[1;33m\U0001f4cc  Endpoints Registrados:\033[0m")
+  File "C:\Users\mojic\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f4cc' in position 10: character maps to <undefined>

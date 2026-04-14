@@ -4,6 +4,7 @@ from models.transaction import Transaction
 from models import db
 from utils.decorators import token_required
 from sqlalchemy import func
+from decimal import Decimal
 
 accounts_bp = Blueprint('accounts', __name__)
 
@@ -12,13 +13,29 @@ accounts_bp = Blueprint('accounts', __name__)
 @token_required
 def get_accounts(user_id, user_email):
     """
-    Obtener todas las cuentas del usuario.
-    
-    Response: [{ "id", "name", "balance", "currency", "created_at" }]
+    Obtener todas las cuentas del usuario con paginación.
+
+    Query params:
+        - page: int (default 1)
+        - per_page: int (default 20, max 100)
+
+    Response: { "data": [...], "total": X, "page": Y, "per_page": Z, "total_pages": N }
     """
     try:
-        accounts = Account.query.filter_by(user_id=user_id).order_by(Account.created_at.desc()).all()
-        return jsonify([account.to_dict() for account in accounts]), 200
+        from utils.pagination import paginate_query
+        
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 20))
+        
+        query = Account.query.filter_by(user_id=user_id).order_by(Account.created_at.desc())
+        
+        return paginate_query(
+            query=query,
+            model_to_dict_fn=lambda acc: acc.to_dict(),
+            page=page,
+            per_page=per_page,
+            max_per_page=100
+        )
     except Exception as e:
         return jsonify({'error': f'Error fetching accounts: {str(e)}'}), 500
 
@@ -42,7 +59,7 @@ def create_account(user_id, user_email):
         account = Account(
             user_id=user_id,
             name=data['name'],
-            balance=float(data.get('balance', 0)),
+            balance=Decimal(str(data.get('balance', 0))),
             currency=data.get('currency', 'USD')
         )
         
@@ -76,7 +93,7 @@ def update_account(user_id, user_email, account_id):
         if 'name' in data:
             account.name = data['name']
         if 'balance' in data:
-            account.balance = float(data['balance'])
+            account.balance = Decimal(str(data['balance']))
         if 'currency' in data:
             account.currency = data['currency']
         

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge, Nav } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge } from 'react-bootstrap';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../services/api';
+import { PageHeader, LoadingSkeleton, EmptyState, Pagination } from '../components/ui';
+import IconPicker from '../components/ui/IconPicker';
 
 const Categories = () => {
   const [categories, setCategories] = useState([]);
@@ -13,18 +15,33 @@ const Categories = () => {
     type: 'expense',
     color: '#0d6efd',
     icon: '',
+    iconType: 'bootstrap', // 'bootstrap' or 'svg'
   });
   const [error, setError] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const perPage = 50;
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    fetchCategories(currentPage);
+  }, [currentPage, activeTab]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = async (page = 1) => {
     setLoading(true);
     try {
-      const response = await getCategories();
-      setCategories(response.data);
+      const params = { page, per_page: perPage };
+      if (activeTab !== 'all') {
+        params.type = activeTab;
+      }
+      const response = await getCategories(params);
+      setCategories(response.data.data);
+      setTotalPages(response.data.total_pages);
+      setTotalItems(response.data.total);
     } catch (error) {
       console.error('Error fetching categories:', error);
     } finally {
@@ -40,10 +57,11 @@ const Categories = () => {
         type: category.type,
         color: category.color || '#0d6efd',
         icon: category.icon || '',
+        iconType: category.iconType || 'bootstrap',
       });
     } else {
       setEditingCategory(null);
-      setFormData({ name: '', type: 'expense', color: '#0d6efd', icon: '' });
+      setFormData({ name: '', type: 'expense', color: '#0d6efd', icon: '', iconType: 'bootstrap' });
     }
     setError('');
     setShowModal(true);
@@ -64,7 +82,7 @@ const Categories = () => {
       } else {
         await createCategory(formData);
       }
-      fetchCategories();
+      fetchCategories(currentPage);
       handleClose();
     } catch (err) {
       setError(err.response?.data?.error || 'Error saving category');
@@ -75,204 +93,300 @@ const Categories = () => {
     if (window.confirm('¿Estás seguro de eliminar esta categoría?')) {
       try {
         await deleteCategory(id);
-        fetchCategories();
+        fetchCategories(currentPage);
       } catch (error) {
         console.error('Error deleting category:', error);
       }
     }
   };
 
+  const handleIconSelect = (icon, iconType) => {
+    setFormData({ ...formData, icon, iconType });
+  };
+
   const filteredCategories =
     activeTab === 'all'
-      ? categories
-      : categories.filter((cat) => cat.type === activeTab);
+      ? (Array.isArray(categories) ? categories : [])
+      : (Array.isArray(categories) ? categories.filter((cat) => cat.type === activeTab) : []);
 
-  const incomeCount = categories.filter((c) => c.type === 'income').length;
-  const expenseCount = categories.filter((c) => c.type === 'expense').length;
+  const incomeCount = Array.isArray(categories) ? categories.filter((c) => c.type === 'income').length : 0;
+  const expenseCount = Array.isArray(categories) ? categories.filter((c) => c.type === 'expense').length : 0;
 
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <h2>
-              <i className="bi bi-tags me-2"></i>
-              Categorías
-            </h2>
-            <Button variant="primary" onClick={() => handleShow()}>
-              <i className="bi bi-plus-circle me-2"></i>
-              Nueva Categoría
-            </Button>
+    <Container fluid className="py-4" style={{ maxWidth: '1400px' }}>
+      <PageHeader
+        title="Categorías"
+        subtitle="Organiza tus ingresos y gastos"
+        icon="tags"
+        actions={
+          <Button variant="primary" onClick={() => handleShow()}>
+            <i className="bi bi-plus-circle me-2"></i>
+            Nueva Categoría
+          </Button>
+        }
+      />
+
+      {/* Tabs - Redesigned */}
+      <Card className="mb-4 animate-fade-in-up" style={{ background: isDark ? '#1e293b' : 'white' }}>
+        <Card.Body className="pb-2">
+          <div className="d-flex gap-2 flex-wrap" role="tablist">
+            {[
+              { key: 'all', label: 'Todas', count: categories.length, icon: 'bi-grid' },
+              { key: 'income', label: 'Ingresos', count: incomeCount, icon: 'bi-arrow-up-circle' },
+              { key: 'expense', label: 'Gastos', count: expenseCount, icon: 'bi-arrow-down-circle' },
+            ].map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveTab(tab.key)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 20px',
+                    borderRadius: 'var(--radius-full)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.9375rem',
+                    fontWeight: 500,
+                    transition: 'all 0.2s',
+                    backgroundColor: isActive ? (isDark ? '#338dfc' : '#338dfc') : 'transparent',
+                    color: isActive ? 'white' : (isDark ? '#94a3b8' : '#64748b'),
+                    boxShadow: isActive ? '0 2px 8px rgba(51, 141, 252, 0.3)' : 'none',
+                  }}
+                >
+                  <i className={`bi ${tab.icon}`}></i>
+                  {tab.label}
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '24px',
+                      height: '24px',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : (isDark ? '#334155' : '#f1f5f9'),
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      padding: '0 6px',
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </Col>
-      </Row>
+        </Card.Body>
+      </Card>
 
-      <Row className="mb-4">
-        <Col>
-          <Card>
-            <Card.Body>
-              <Nav variant="tabs" defaultActiveKey="all">
-                <Nav.Item>
-                  <Nav.Link
-                    active={activeTab === 'all'}
-                    onClick={() => setActiveTab('all')}
-                  >
-                    Todas ({categories.length})
-                  </Nav.Link>
-                </Nav.Item>
-                <Nav.Item>
-                  <Nav.Link
-                    active={activeTab === 'income'}
-                    onClick={() => setActiveTab('income')}
-                  >
-                    <i className="bi bi-arrow-up-circle text-success me-1"></i>
-                    Ingresos ({incomeCount})
-                  </Nav.Link>
-                </Nav.Item>
-                <Nav.Item>
-                  <Nav.Link
-                    active={activeTab === 'expense'}
-                    onClick={() => setActiveTab('expense')}
-                  >
-                    <i className="bi bi-arrow-down-circle text-danger me-1"></i>
-                    Gastos ({expenseCount})
-                  </Nav.Link>
-                </Nav.Item>
-              </Nav>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-
-      <Row>
-        {filteredCategories.map((category) => (
-          <Col key={category.id} md={3} className="mb-3">
-            <Card>
-              <Card.Body>
-                <div className="d-flex justify-content-between align-items-start">
-                  <div className="d-flex align-items-center">
-                    {category.color && (
+      {/* Category Grid */}
+      {loading ? (
+        <Row>
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <Col key={i} md={3} sm={6} className="mb-3">
+              <LoadingSkeleton type="card" count={1} />
+            </Col>
+          ))}
+        </Row>
+      ) : filteredCategories.length > 0 ? (
+        <div style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}>
+          <Row>
+          {filteredCategories.map((category, idx) => (
+            <Col key={category.id} md={3} sm={6} className="mb-3">
+              <Card
+                className="animate-fade-in-up h-100"
+                style={{
+                  animationDelay: `${idx * 0.05}s`,
+                  background: isDark ? '#1e293b' : 'white',
+                  borderColor: isDark ? '#334155' : 'transparent',
+                }}
+              >
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-start">
+                    <div className="d-flex align-items-center flex-grow-1" style={{ minWidth: 0 }}>
+                      {/* Color swatch with icon */}
                       <div
-                        className="me-3"
+                        className="d-flex align-items-center justify-content-center me-3 flex-shrink-0"
                         style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '8px',
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: 'var(--radius-lg)',
                           backgroundColor: category.color,
+                          color: 'white',
+                          fontSize: '1.25rem',
+                          boxShadow: `0 4px 12px ${category.color}40`,
                         }}
-                      ></div>
-                    )}
-                    <div>
-                      <Card.Title className="mb-1">{category.name}</Card.Title>
-                      <Badge bg={category.type === 'income' ? 'success' : 'danger'}>
-                        {category.type === 'income' ? 'Ingreso' : 'Gasto'}
-                      </Badge>
+                      >
+                        {category.icon ? (
+                          category.iconType === 'svg' ? (
+                            <span style={{ fontSize: '1.5rem', lineHeight: 1 }} dangerouslySetInnerHTML={{ __html: category.icon }} />
+                          ) : (
+                            <i className={`bi bi-${category.icon}`}></i>
+                          )
+                        ) : (
+                          <i className="bi bi-tag"></i>
+                        )}
+                      </div>
+
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <Card.Title
+                          className="mb-1 text-truncate"
+                          style={{
+                            fontWeight: 600,
+                            fontSize: '0.9375rem',
+                            color: isDark ? '#f1f5f9' : '#0f172a',
+                          }}
+                        >
+                          {category.name}
+                        </Card.Title>
+                        <Badge
+                          bg="transparent"
+                          style={{
+                            color: category.type === 'income'
+                              ? (isDark ? '#6ee7b7' : '#047857')
+                              : (isDark ? '#fda4af' : '#be123c'),
+                            backgroundColor: category.type === 'income'
+                              ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'var(--success-50)')
+                              : (isDark ? 'rgba(244, 63, 94, 0.15)' : 'var(--danger-50)'),
+                            fontWeight: 500,
+                            padding: '0.25rem 0.625rem',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: '0.6875rem',
+                          }}
+                        >
+                          {category.type === 'income' ? 'Ingreso' : 'Gasto'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="d-flex gap-1">
+                      <Button
+                        variant="light"
+                        size="sm"
+                        className="p-2"
+                        onClick={() => handleShow(category)}
+                        style={{
+                          borderRadius: 'var(--radius-md)',
+                          background: isDark ? '#334155' : 'transparent',
+                          color: isDark ? '#cbd5e1' : 'var(--primary-600)',
+                          border: 'none',
+                        }}
+                      >
+                        <i className="bi bi-pencil"></i>
+                      </Button>
+                      <Button
+                        variant="light"
+                        size="sm"
+                        className="p-2"
+                        onClick={() => handleDelete(category.id)}
+                        style={{
+                          borderRadius: 'var(--radius-md)',
+                          background: isDark ? '#334155' : 'transparent',
+                          color: isDark ? '#fda4af' : 'var(--danger-500)',
+                          border: 'none',
+                        }}
+                      >
+                        <i className="bi bi-trash"></i>
+                      </Button>
                     </div>
                   </div>
-                  <div>
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      className="me-1"
-                      onClick={() => handleShow(category)}
-                    >
-                      <i className="bi bi-pencil"></i>
-                    </Button>
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => handleDelete(category.id)}
-                    >
-                      <i className="bi bi-trash"></i>
-                    </Button>
-                  </div>
-                </div>
-                {category.icon && (
-                  <Card.Text className="text-muted mt-2">
-                    <i className={`bi bi-${category.icon} me-1`}></i>
-                    {category.icon}
-                  </Card.Text>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      {filteredCategories.length === 0 && !loading && (
-        <Row>
-          <Col>
-            <Card>
-              <Card.Body className="text-center py-5">
-                <i className="bi bi-inbox text-muted" style={{ fontSize: '3rem' }}></i>
-                <p className="mt-2 text-muted">No hay categorías</p>
-                <Button variant="primary" onClick={() => handleShow()}>
-                  Crear Primera Categoría
-                </Button>
-              </Card.Body>
-            </Card>
-          </Col>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
         </Row>
-      )}
-
-      {loading && (
-        <div className="text-center py-5">
-          <div className="spinner-border text-primary" role="status" />
         </div>
+      ) : (
+        <EmptyState
+          icon="tags"
+          title="No hay categorías"
+          description="Crea tu primera categoría para organizar mejor tus finanzas"
+          actionLabel="Nueva Categoría"
+          onAction={() => handleShow()}
+        />
       )}
 
-      <Modal show={showModal} onHide={handleClose}>
+      {/* Pagination */}
+      {!loading && categories.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={totalItems}
+          perPage={perPage}
+        />
+      )}
+
+      {/* Modal */}
+      <Modal show={showModal} onHide={handleClose} centered size="lg">
         <Form onSubmit={handleSubmit}>
-          <Modal.Header closeButton>
-            <Modal.Title>
+          <Modal.Header closeButton style={{ borderColor: isDark ? '#334155' : '#e2e8f0' }}>
+            <Modal.Title style={{ color: isDark ? '#f1f5f9' : '#0f172a' }}>
               {editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}
             </Modal.Title>
           </Modal.Header>
-          <Modal.Body>
+          <Modal.Body style={{ background: isDark ? '#1e293b' : 'white' }}>
             {error && <Alert variant="danger">{error}</Alert>}
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label style={{ color: isDark ? '#e2e8f0' : '#334155' }}>Nombre</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ej: Alimentación"
+                    required
+                    style={{ background: isDark ? '#0f172a' : 'white', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#f1f5f9' : '#0f172a' }}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label style={{ color: isDark ? '#e2e8f0' : '#334155' }}>Tipo</Form.Label>
+                  <Form.Select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    style={{ background: isDark ? '#0f172a' : 'white', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#f1f5f9' : '#0f172a' }}
+                  >
+                    <option value="expense">Gasto</option>
+                    <option value="income">Ingreso</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
             <Form.Group className="mb-3">
-              <Form.Label>Nombre</Form.Label>
-              <Form.Control
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ej: Alimentación"
-                required
-              />
+              <Form.Label style={{ color: isDark ? '#e2e8f0' : '#334155' }}>Color</Form.Label>
+              <div className="d-flex align-items-center gap-3">
+                <Form.Control
+                  type="color"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  style={{ width: '50px', height: '40px', borderRadius: 'var(--radius-lg)' }}
+                />
+                <span className="mono" style={{ fontSize: '0.875rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+                  {formData.color}
+                </span>
+              </div>
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Tipo</Form.Label>
-              <Form.Select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              >
-                <option value="expense">Gasto</option>
-                <option value="income">Ingreso</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Color</Form.Label>
-              <Form.Control
-                type="color"
-                value={formData.color}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              <Form.Label style={{ color: isDark ? '#e2e8f0' : '#334155' }}>Icono</Form.Label>
+              <IconPicker
+                selectedIcon={formData.icon}
+                selectedType={formData.iconType}
+                onIconSelect={handleIconSelect}
               />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Icono (Bootstrap Icon name)</Form.Label>
-              <Form.Control
-                type="text"
-                value={formData.icon}
-                onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                placeholder="Ej: cart, house, car"
-              />
-              <Form.Text className="text-muted">
-                Nombres de iconos: https://icons.getbootstrap.com
-              </Form.Text>
             </Form.Group>
           </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
+          <Modal.Footer style={{ 
+            backgroundColor: isDark ? '#1e293b' : 'white',
+            borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`
+          }}>
+            <Button variant="light" onClick={handleClose}>
               Cancelar
             </Button>
             <Button variant="primary" type="submit">

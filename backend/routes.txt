@@ -1,0 +1,188 @@
+[
+  {
+    "rule": "/static/<path:filename>",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/swagger.json",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/docs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/swaggerui/<path:filename>",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/auth/verify",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/auth/me",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/accounts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/accounts",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/accounts/<int:account_id>",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/accounts/<int:account_id>",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/categories",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/categories",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/categories/<int:category_id>",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/categories/<int:category_id>",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/transactions",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/transactions",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/transactions/<int:transaction_id>",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/transactions/<int:transaction_id>",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/budgets",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/budgets",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/budgets/<int:budget_id>",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/budgets/<int:budget_id>",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/analytics/spending-by-category",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/analytics/cash-flow",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/analytics/trends",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/analytics/category-comparison",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/analytics/account-performance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/analytics/spending-heatmap",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/dashboard/summary",
+    "methods": [
+      "GET"
+    ]
+  }
+]

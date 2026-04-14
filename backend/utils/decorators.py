@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import request, jsonify, current_app
+from flask import request, jsonify, current_app, make_response
 from services.supabase_auth import SupabaseAuthService
 
 
@@ -10,6 +10,11 @@ def token_required(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Return empty 200 response for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            resp = make_response('', 200)
+            return resp
+
         token = None
 
         # Obtener token del header Authorization

@@ -25,9 +25,9 @@ def create_app():
     # Cargar configuración
     app.config.from_object(Config)
     
-    # Configurar CORS
-    CORS(app, 
-         resources={r"/*": {"origins": app.config.get('CORS_ORIGINS', ['http://localhost:3000'])}},
+    # Configurar CORS - aceptar todas las origins
+    CORS(app,
+         resources={r"/*": {"origins": "*"}},
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
          allow_headers=['Content-Type', 'Authorization', 'Accept'],
          expose_headers=['Authorization'],
@@ -247,7 +247,7 @@ if __name__ == '__main__':
     print(f"   \033[1;34m  Swagger UI:\033[0m      \033[4;34mhttp://localhost:5000/api/docs\033[0m")
     print(f"   \033[1;34m  OpenAPI Spec:\033[0m    \033[4;34mhttp://localhost:5000/api/swagger.json\033[0m")
     print("\033[1;36m" + "-"*60 + "\033[0m")
-    print("   \033[1;33m📌  Endpoints Registrados:\033[0m")
+    print("   [!] Endpoints Registrados:")
     print("      \033[90m•\033[0m \033[1;32mPOST\033[0m  /api/auth/verify")
     print("      \033[90m•\033[0m \033[1;32mGET\033[0m   /api/auth/me")
     print("      \033[90m•\033[0m \033[1;35mCRUD\033[0m  /api/accounts")

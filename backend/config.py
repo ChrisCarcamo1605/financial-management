@@ -30,4 +30,5 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hora
 
     # CORS Configuration
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    cors_origins_raw = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
+    CORS_ORIGINS = [origin.strip() for origin in cors_origins_raw.split(',') if origin.strip()]

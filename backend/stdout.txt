@@ -1,0 +1,7 @@
+[1;36m============================================================[0m
+[1;32m   FINANCIAL MANAGEMENT API IS STARTING[0m
+[1;36m============================================================[0m
+   [1;34m  Local Server:[0m    [4;34mhttp://localhost:5000[0m
+   [1;34m  Swagger UI:[0m      [4;34mhttp://localhost:5000/api/docs[0m
+   [1;34m  OpenAPI Spec:[0m    [4;34mhttp://localhost:5000/api/swagger.json[0m
+[1;36m------------------------------------------------------------[0m
