@@ -11,6 +11,7 @@ import Accounts from './pages/Accounts';
 import Categories from './pages/Categories';
 import Budgets from './pages/Budgets';
 import Reports from './pages/Reports';
+import Analytics from './pages/Analytics';
 
 function App() {
   return (
@@ -69,6 +70,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <Analytics />
                 </ProtectedRoute>
               }
             />

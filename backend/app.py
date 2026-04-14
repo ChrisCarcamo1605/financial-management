@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_restx import Api, Resource, fields
 from config import Config
@@ -12,6 +12,7 @@ from routes.accounts import accounts_bp
 from routes.categories import categories_bp
 from routes.transactions import transactions_bp
 from routes.budgets import budgets_bp
+from routes.analytics import analytics_bp
 from datetime import datetime, date, timedelta
 from sqlalchemy import func
 
@@ -25,7 +26,14 @@ def create_app():
     app.config.from_object(Config)
     
     # Configurar CORS
-    CORS(app, origins=app.config.get('CORS_ORIGINS', ['http://localhost:3000']))
+    CORS(app, 
+         resources={r"/*": {"origins": app.config.get('CORS_ORIGINS', ['http://localhost:3000'])}},
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+         allow_headers=['Content-Type', 'Authorization', 'Accept'],
+         expose_headers=['Authorization'],
+         supports_credentials=True,
+         max_age=3600,
+         always_send_access_control_headers=True)
 
     # Configurar Swagger UI
     api = Api(
@@ -68,6 +76,7 @@ def create_app():
     app.register_blueprint(categories_bp)
     app.register_blueprint(transactions_bp)
     app.register_blueprint(budgets_bp)
+    app.register_blueprint(analytics_bp, url_prefix='/api')
 
     # ========================
     # Swagger Model Definitions

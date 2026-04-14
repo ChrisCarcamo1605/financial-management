@@ -69,4 +69,12 @@ export const deleteBudget = (id) => api.delete(`/api/budgets/${id}`);
 // Dashboard
 export const getDashboardSummary = () => api.get('/api/dashboard/summary');
 
+// Analytics
+export const getSpendingByCategory = (params) => api.get('/api/analytics/spending-by-category', { params });
+export const getCashFlowAnalysis = (params) => api.get('/api/analytics/cash-flow', { params });
+export const getTrendAnalysis = (params) => api.get('/api/analytics/trends', { params });
+export const getCategoryComparison = (params) => api.get('/api/analytics/category-comparison', { params });
+export const getAccountPerformance = (params) => api.get('/api/analytics/account-performance', { params });
+export const getSpendingHeatmap = (params) => api.get('/api/analytics/spending-heatmap', { params });
+
 export default api;

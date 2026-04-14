@@ -1,10 +1,25 @@
 import React from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import zoomPlugin from 'chartjs-plugin-zoom';
+import annotationPlugin from 'chartjs-plugin-annotation';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  zoomPlugin,
+  annotationPlugin
+);
 
-const Chart = ({ type, data, options }) => {
+const Chart = ({ type, data, options, enableZoom = false }) => {
   const defaultOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -14,6 +29,25 @@ const Chart = ({ type, data, options }) => {
       },
     },
   };
+
+  // Add zoom configuration if enabled
+  if (enableZoom) {
+    defaultOptions.plugins.zoom = {
+      zoom: {
+        wheel: {
+          enabled: true,
+        },
+        pinch: {
+          enabled: true,
+        },
+        mode: 'xy',
+      },
+      pan: {
+        enabled: true,
+        mode: 'xy',
+      },
+    };
+  }
 
   const chartOptions = { ...defaultOptions, ...options };
 

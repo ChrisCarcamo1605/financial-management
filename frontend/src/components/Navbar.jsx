@@ -69,6 +69,13 @@ const AppNavbar = () => {
             >
               <i className="bi bi-graph-up me-1"></i> Reportes
             </Nav.Link>
+            <Nav.Link
+              as={Link}
+              to="/analytics"
+              active={location.pathname === '/analytics'}
+            >
+              <i className="bi bi-bar-chart-line me-1"></i> Analytics
+            </Nav.Link>
           </Nav>
           <Nav>
             <NavDropdown title={user.email || 'Usuario'} id="user-dropdown">

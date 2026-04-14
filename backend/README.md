@@ -1,6 +1,6 @@
 # Financial Management API
 
-Backend API para la gestión de finanzas personales construida con Flask, SQLAlchemy y Supabase.
+Backend API para la gestión de finanzas personales construida con Flask, SQLAlchemy, pandas y Supabase.
 
 ## 🚀 Características
 
@@ -10,12 +10,13 @@ Backend API para la gestión de finanzas personales construida con Flask, SQLAlc
 - ✅ Registro de transacciones con balance automático
 - ✅ Presupuestos mensuales/semanales con seguimiento
 - ✅ Dashboard con resumen financiero
+- ✅ **Analytics avanzados con pandas** (tendencias, cash flow, heatmaps)
 - ✅ Row Level Security (RLS) en Supabase
 - ✅ API RESTful con validaciones
 
 ## 📋 Requisitos
 
-- Python 3.8+
+- **Python 3.12** (requerido para pandas)
 - Cuenta de Supabase (gratuita en https://supabase.com)
 
 ## ⚙️ Configuración
@@ -31,14 +32,35 @@ Backend API para la gestión de finanzas personales construida con Flask, SQLAlc
    - `SUPABASE_ANON_KEY`
    - `SUPABASE_JWT_SECRET`
 
-### 2. Instalar dependencias
+### 2. Instalar Python 3.12
 
+**IMPORTANTE**: Este proyecto requiere Python 3.12 para compatibilidad con pandas.
+
+**Opción A - Microsoft Store:**
+1. Abre Microsoft Store
+2. Busca "Python 3.12"
+3. Instálalo
+
+**Opción B - python.org:**
+Descarga desde: https://www.python.org/downloads/release/python-3128/
+
+### 3. Configurar el proyecto
+
+**Windows (automático):**
 ```bash
 cd backend
+setup.bat
+```
+
+**Manual:**
+```bash
+cd backend
+py -3.12 -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Configurar variables de entorno
+### 4. Configurar variables de entorno
 
 ```bash
 cp .env.example .env
@@ -58,9 +80,17 @@ JWT_SECRET_KEY=tu-super-secret-jwt-key
 CORS_ORIGINS=http://localhost:3000
 ```
 
-### 4. Ejecutar la aplicación
+### 5. Ejecutar la aplicación
 
+**Windows:**
 ```bash
+venv\Scripts\activate
+python app.py
+```
+
+**Linux/Mac:**
+```bash
+source venv/bin/activate
 python app.py
 ```
 
@@ -116,6 +146,23 @@ La API estará disponible en: `http://localhost:5000`
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/api/dashboard/summary` | Resumen financiero |
+
+### Analytics (Pandas)
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/analytics/spending-by-category` | Gastos por categoría con agregación pandas |
+| GET | `/api/analytics/cash-flow` | Análisis de flujo de caja temporal |
+| GET | `/api/analytics/trends` | Tendencias con promedios móviles |
+| GET | `/api/analytics/category-comparison` | Comparación de categorías |
+| GET | `/api/analytics/account-performance` | Rendimiento por cuenta |
+| GET | `/api/analytics/spending-heatmap` | Mapa de calor de gastos |
+
+**Parámetros de consulta para Analytics:**
+- `start_date`: Fecha inicio (YYYY-MM-DD)
+- `end_date`: Fecha fin (YYYY-MM-DD)
+- `group_by`: Agrupación temporal (day/week/month/quarter/year)
+- `window`: Ventana de promedio móvil (para trends)
 
 ## 🔐 Autenticación
 
@@ -178,9 +225,12 @@ Todas las tablas tienen Row Level Security (RLS) activado para asegurar que cada
 
 - **Flask**: Framework web
 - **SQLAlchemy**: ORM
+- **pandas**: Análisis de datos y agregaciones avanzadas
+- **numpy**: Operaciones numéricas
 - **Flask-CORS**: Soporte CORS
 - **PyJWT**: Verificación de tokens JWT
 - **Supabase**: Base de datos PostgreSQL + Auth
+- **Chart.js**: Visualización de datos (frontend)
 
 ## 📝 Notas
 

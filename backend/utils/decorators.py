@@ -11,7 +11,7 @@ def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-        
+
         # Obtener token del header Authorization
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
@@ -20,22 +20,22 @@ def token_required(f):
                 token = auth_header.split(" ")[1]
             except IndexError:
                 return jsonify({'error': 'Invalid token format. Use: Bearer <token>'}), 401
-        
+
         if not token:
             return jsonify({'error': 'Authentication token is required'}), 401
-        
+
         # Verificar el token
         user = SupabaseAuthService.verify_token(token)
-        
+
         if not user:
             return jsonify({'error': 'Invalid or expired token'}), 401
-        
+
         # Inyectar user_id en los kwargs para usar en la ruta
         kwargs['user_id'] = user['id']
         kwargs['user_email'] = user.get('email')
-        
+
         return f(*args, **kwargs)
-    
+
     return decorated
 
 
@@ -47,20 +47,20 @@ def optional_token(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-        
+
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
             try:
                 token = auth_header.split(" ")[1]
                 user = SupabaseAuthService.verify_token(token)
-                
+
                 if user:
                     kwargs['user_id'] = user['id']
                     kwargs['user_email'] = user.get('email')
             except Exception:
                 # Si hay error con el token, continuar sin user_id
                 pass
-        
+
         return f(*args, **kwargs)
-    
+
     return decorated
