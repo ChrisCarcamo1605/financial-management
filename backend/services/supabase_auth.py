@@ -11,10 +11,10 @@ class SupabaseAuthService:
     def verify_token(token):
         """
         Verificar un token JWT de Supabase.
-        
+
         Args:
             token: JWT token de Supabase Auth
-            
+
         Returns:
             dict: Información del usuario si el token es válido
             None: Si el token es inválido
@@ -22,29 +22,29 @@ class SupabaseAuthService:
         try:
             # Obtener la clave secreta de Supabase para verificar el token
             jwt_secret = current_app.config.get('SUPABASE_JWT_SECRET')
-            
-            if not jwt_secret:
-                # Si no hay JWT_SECRET configurado, usar la API de Supabase para verificar
-                return SupabaseAuthService._verify_via_api(token)
-            
-            # Decodificar el token usando el secreto
-            payload = jwt.decode(
-                token,
-                jwt_secret,
-                algorithms=['HS256'],
-                audience='authenticated'
-            )
-            
-            return {
-                'id': payload.get('sub'),
-                'email': payload.get('email'),
-                'exp': payload.get('exp')
-            }
-            
-        except jwt.ExpiredSignatureError:
-            return None
-        except jwt.InvalidTokenError:
-            return None
+
+            if jwt_secret and jwt_secret != 'your-jwt-secret':
+                # Decodificar el token usando el secreto (solo si está configurado correctamente)
+                try:
+                    payload = jwt.decode(
+                        token,
+                        jwt_secret,
+                        algorithms=['HS256'],
+                        audience='authenticated'
+                    )
+
+                    return {
+                        'id': payload.get('sub'),
+                        'email': payload.get('email'),
+                        'exp': payload.get('exp')
+                    }
+                except jwt.InvalidTokenError:
+                    # Si falla JWT, intentar con API de Supabase
+                    pass
+
+            # Fallback: usar la API de Supabase para verificar
+            return SupabaseAuthService._verify_via_api(token)
+
         except Exception as e:
             current_app.logger.error(f"Error verifying token: {str(e)}")
             return None

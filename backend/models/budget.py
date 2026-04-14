@@ -1,7 +1,5 @@
 from datetime import datetime, date
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+from . import db
 
 
 class Budget(db.Model):

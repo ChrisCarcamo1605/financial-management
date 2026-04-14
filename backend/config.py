@@ -14,9 +14,10 @@ class Config:
     SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
 
     # Database Configuration (Supabase PostgreSQL)
+    SUPABASE_HOST = os.getenv('SUPABASE_URL', '').replace('https://', '').replace('.supabase.co', '')
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL') or (
         f"postgresql+psycopg2://postgres:{os.getenv('SUPABASE_DB_PASSWORD')}"
-        f"@{os.getenv('SUPABASE_URL').replace('https://', 'db.')}.supabase.co:5432/postgres"
+        f"@db.{SUPABASE_HOST}.supabase.co:5432/postgres"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
