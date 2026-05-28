@@ -209,7 +209,7 @@ const Login = () => {
                 <Form.Label className="fw-500" style={{ color: isDark ? '#e2e8f0' : '#334155' }}>Email</Form.Label>
                 <Form.Control
                   type="email"
-                  placeholder="tu@email.com"
+                  placeholder="user@example.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
@@ -221,7 +221,7 @@ const Login = () => {
                 <Form.Label className="fw-500" style={{ color: isDark ? '#e2e8f0' : '#334155' }}>Contraseña</Form.Label>
                 <Form.Control
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="password123"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
