@@ -21,7 +21,12 @@ const Login = () => {
       await login(formData.email, formData.password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.error_description || err.msg || 'Error al iniciar sesión');
+      const msg = err.error_description || err.msg;
+      if (err.code === 'invalid_credentials') {
+        setError('Email o contraseña incorrectos');
+      } else {
+        setError(msg || 'Error al iniciar sesión');
+      }
     } finally {
       setLoading(false);
     }

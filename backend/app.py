@@ -1,3 +1,4 @@
+import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_restx import Api, Resource, fields
@@ -25,9 +26,9 @@ def create_app():
     # Cargar configuración
     app.config.from_object(Config)
     
-    # Configurar CORS - aceptar todas las origins
+    # Configurar CORS
     CORS(app,
-         resources={r"/*": {"origins": "*"}},
+         resources={r"/*": {"origins": app.config.get('CORS_ORIGINS', '*')}},
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
          allow_headers=['Content-Type', 'Authorization', 'Accept'],
          expose_headers=['Authorization'],
@@ -258,4 +259,6 @@ if __name__ == '__main__':
     print("      \033[90m•\033[0m \033[1;34mGET\033[0m   /api/health")
     print("\033[1;36m" + "="*60 + "\033[0m\n")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    
+    app.run(debug=False, host='0.0.0.0', port=port)

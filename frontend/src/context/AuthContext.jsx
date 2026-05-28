@@ -68,6 +68,10 @@ export const AuthProvider = ({ children }) => {
 
     if (error) throw error;
 
+    if (!data.user?.email_confirmed_at) {
+      throw { error_description: 'Debes confirmar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.' };
+    }
+
     if (data.session?.access_token) {
       setToken(data.session.access_token);
       localStorage.setItem('token', data.session.access_token);
