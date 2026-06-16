@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge } from 'react-bootstrap';
 import { getAccounts, createAccount, updateAccount, deleteAccount } from '../services/api';
 import { PageHeader, LoadingSkeleton, EmptyState, Pagination } from '../components/ui';
+import { useTheme } from '../context/ThemeContext';
 
 const Accounts = () => {
   const [accounts, setAccounts] = useState([]);
@@ -21,7 +22,8 @@ const Accounts = () => {
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 20;
   
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     fetchAccounts(currentPage);
@@ -160,11 +162,11 @@ const Accounts = () => {
                         <Card.Title className="mb-0" style={{ fontWeight: 600 }}>
                           {account.name}
                         </Card.Title>
-                        <Badge 
+                        <Badge
                           bg="transparent"
                           style={{
-                            color: 'var(--slate-500)',
-                            backgroundColor: 'var(--slate-100)',
+                            color: 'var(--slate-600)',
+                            backgroundColor: isDark ? 'rgba(148,163,184,0.12)' : 'var(--slate-100)',
                             fontWeight: 500,
                             padding: '0.25rem 0.5rem',
                             borderRadius: 'var(--radius-full)',

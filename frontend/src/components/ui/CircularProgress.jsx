@@ -29,9 +29,8 @@ const CircularProgress = ({
     info: '#2563eb',
   };
 
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const activeColor = color === 'auto' ? getColor(safeValue) : (solidColorMap[color] || color);
-  const solidBgColor = isDark ? '#334155' : '#e2e8f0';
+  const solidBgColor = 'var(--slate-200)'; /* #e2e8f0 light / #334155 dark via CSS var inversion */
 
   return (
     <div className={`d-flex flex-column align-items-center ${className}`}>

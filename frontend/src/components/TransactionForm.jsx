@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Row, Col } from 'react-bootstrap';
-import { getAccounts, getCategories, createTransaction, updateTransaction } from '../services/api';
+import { getAccounts, getCategories, getLoans, createTransaction, updateTransaction } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 const TransactionForm = ({ show, handleClose, transaction, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -10,30 +11,37 @@ const TransactionForm = ({ show, handleClose, transaction, onSuccess }) => {
     type: 'expense',
     description: '',
     date: new Date().toISOString().split('T')[0],
+    loan_id: '',
   });
   const [accounts, setAccounts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [loans, setLoans] = useState([]);
+  const [isLoanPayment, setIsLoanPayment] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fetchingData, setFetchingData] = useState(false);
 
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     const fetchData = async () => {
       setFetchingData(true);
       try {
-        const [accountsRes, categoriesRes] = await Promise.all([
+        const [accountsRes, categoriesRes, loansRes] = await Promise.all([
           getAccounts({ page: 1, per_page: 100 }),
           getCategories({ page: 1, per_page: 200 }),
+          getLoans({ page: 1, per_page: 100 }),
         ]);
         setAccounts(Array.isArray(accountsRes.data?.data) ? accountsRes.data.data : []);
         setCategories(Array.isArray(categoriesRes.data?.data) ? categoriesRes.data.data : []);
+        setLoans(Array.isArray(loansRes.data?.data) ? loansRes.data.data : []);
       } catch (err) {
-        console.error('Error loading accounts/categories:', err);
+        console.error('Error loading accounts/categories/loans:', err);
         setError('Error cargando datos. Intente nuevamente.');
         setAccounts([]);
         setCategories([]);
+        setLoans([]);
       } finally {
         setFetchingData(false);
       }
@@ -50,7 +58,9 @@ const TransactionForm = ({ show, handleClose, transaction, onSuccess }) => {
         type: transaction.type || 'expense',
         description: transaction.description || '',
         date: transaction.date || new Date().toISOString().split('T')[0],
+        loan_id: transaction.loan_id || '',
       });
+      setIsLoanPayment(Boolean(transaction.loan_id));
     } else {
       setFormData({
         account_id: '',
@@ -59,7 +69,9 @@ const TransactionForm = ({ show, handleClose, transaction, onSuccess }) => {
         type: 'expense',
         description: '',
         date: new Date().toISOString().split('T')[0],
+        loan_id: '',
       });
+      setIsLoanPayment(false);
     }
   }, [transaction]);
 
@@ -73,11 +85,20 @@ const TransactionForm = ({ show, handleClose, transaction, onSuccess }) => {
     setLoading(true);
     setError('');
 
+    // El vínculo con préstamo solo aplica a gastos y cuando está marcado.
+    const linkLoan = isLoanPayment && formData.type === 'expense';
+    if (linkLoan && !formData.loan_id) {
+      setLoading(false);
+      setError('Selecciona el préstamo al que abonas');
+      return;
+    }
+    const payload = { ...formData, loan_id: linkLoan ? formData.loan_id : null };
+
     try {
       if (transaction) {
-        await updateTransaction(transaction.id, formData);
+        await updateTransaction(transaction.id, payload);
       } else {
-        await createTransaction(formData);
+        await createTransaction(payload);
       }
       onSuccess();
       handleClose();
@@ -89,6 +110,10 @@ const TransactionForm = ({ show, handleClose, transaction, onSuccess }) => {
   };
 
   const filteredCategories = Array.isArray(categories) ? categories.filter((cat) => cat.type === formData.type) : [];
+  const activeLoans = Array.isArray(loans) ? loans.filter((l) => l.status !== 'paid') : [];
+
+  const formatMoney = (n) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 
   return (
     <Modal show={show} onHide={handleClose} size="lg">
@@ -205,6 +230,47 @@ const TransactionForm = ({ show, handleClose, transaction, onSuccess }) => {
               required
             />
           </Form.Group>
+
+          {/* Vínculo con préstamo — solo para gastos */}
+          {formData.type === 'expense' && activeLoans.length > 0 && (
+            <div
+              className="p-3 mb-1"
+              style={{
+                borderRadius: 'var(--radius-lg)',
+                border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                background: isDark ? '#0f172a' : '#f8fafc',
+              }}
+            >
+              <Form.Check
+                type="checkbox"
+                id="is-loan-payment"
+                label="Es el pago de un préstamo"
+                checked={isLoanPayment}
+                onChange={(e) => setIsLoanPayment(e.target.checked)}
+              />
+              {isLoanPayment && (
+                <div className="mt-3">
+                  <Form.Label style={{ fontSize: '0.8125rem' }}>Préstamo</Form.Label>
+                  <Form.Select
+                    name="loan_id"
+                    value={formData.loan_id}
+                    onChange={handleChange}
+                    required={isLoanPayment}
+                  >
+                    <option value="">Seleccionar préstamo...</option>
+                    {activeLoans.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} — resta {formatMoney(l.remaining)}
+                      </option>
+                    ))}
+                  </Form.Select>
+                  <p className="mb-0 mt-2" style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+                    El monto se abona al préstamo; si pagas de más, se salda más rápido.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </Modal.Body>
         <Modal.Footer style={{ 
           backgroundColor: isDark ? '#1e293b' : 'white',

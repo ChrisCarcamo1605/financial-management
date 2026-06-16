@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge } from 'react-bootstrap';
 import { getBudgets, getCategories, createBudget, updateBudget, deleteBudget } from '../services/api';
 import { PageHeader, LoadingSkeleton, EmptyState, CircularProgress, Pagination } from '../components/ui';
+import { useTheme } from '../context/ThemeContext';
 
 const Budgets = () => {
   const [budgets, setBudgets] = useState([]);
@@ -24,7 +25,8 @@ const Budgets = () => {
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 20;
 
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     fetchData(currentPage);

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Modal, Form, Alert, Badge } from 'react-bootstrap';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../services/api';
-import { PageHeader, LoadingSkeleton, EmptyState, Pagination } from '../components/ui';
+import { PageHeader, LoadingSkeleton, EmptyState, Pagination, Icon } from '../components/ui';
 import IconPicker from '../components/ui/IconPicker';
+import { useTheme } from '../context/ThemeContext';
 
 const Categories = () => {
   const [categories, setCategories] = useState([]);
@@ -25,7 +26,8 @@ const Categories = () => {
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 50;
 
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     fetchCategories(currentPage);
@@ -221,15 +223,12 @@ const Categories = () => {
                           boxShadow: `0 4px 12px ${category.color}40`,
                         }}
                       >
-                        {category.icon ? (
-                          category.iconType === 'svg' ? (
-                            <span style={{ fontSize: '1.5rem', lineHeight: 1 }} dangerouslySetInnerHTML={{ __html: category.icon }} />
-                          ) : (
-                            <i className={`bi bi-${category.icon}`}></i>
-                          )
-                        ) : (
-                          <i className="bi bi-tag"></i>
-                        )}
+                        <Icon
+                          icon={category.icon}
+                          iconType={category.iconType}
+                          fallback="tag"
+                          size={category.iconType === 'svg' ? '1.5rem' : undefined}
+                        />
                       </div>
 
                       <div style={{ minWidth: 0, flex: 1 }}>

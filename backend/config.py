@@ -5,38 +5,37 @@ load_dotenv()
 
 
 class Config:
-    """Configuración principal de la aplicación."""
-
-    # Supabase Configuration
-    SUPABASE_URL = os.getenv('SUPABASE_URL')
-    SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-    SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
-    SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')
-
-    # Database Configuration (Supabase PostgreSQL or direct connection string)
-    SUPABASE_HOST = os.getenv('SUPABASE_URL', '').replace('https://', '').replace('.supabase.co', '')
-    
+    # ── Database ──────────────────────────────────────────────────────────────
     _database_url = os.getenv('DATABASE_URL')
     if _database_url:
-        # Convert postgresql:// to postgresql+psycopg2:// for psycopg2 driver
         if _database_url.startswith('postgresql://'):
             _database_url = _database_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
         SQLALCHEMY_DATABASE_URI = _database_url
     else:
+        # Fallback: direct Supabase PostgreSQL connection (DB only, not Auth)
+        _host = os.getenv('SUPABASE_URL', '').replace('https://', '').replace('.supabase.co', '')
         SQLALCHEMY_DATABASE_URI = (
             f"postgresql+psycopg2://postgres:{os.getenv('SUPABASE_DB_PASSWORD')}"
-            f"@db.{SUPABASE_HOST}.supabase.co:5432/postgres"
+            f"@db.{_host}.supabase.co:5432/postgres"
         )
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
     }
 
-    # JWT Configuration
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
-    JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hora
+    # ── JWT / Auth ────────────────────────────────────────────────────────────
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'change-this-secret-in-production')
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 900))    # 15 min
+    JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 604800))  # 7 days
 
-    # CORS Configuration
-    cors_origins_raw = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
-    CORS_ORIGINS = [origin.strip() for origin in cors_origins_raw.split(',') if origin.strip()]
+    # ── Cookie settings ───────────────────────────────────────────────────────
+    # Set COOKIE_SECURE=true and COOKIE_SAMESITE=None in production when
+    # frontend and backend are on different Railway domains.
+    COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'false').lower() == 'true'
+    COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'Lax')
+
+    # ── CORS ──────────────────────────────────────────────────────────────────
+    _origins_raw = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
+    CORS_ORIGINS = [o.strip() for o in _origins_raw.split(',') if o.strip()]

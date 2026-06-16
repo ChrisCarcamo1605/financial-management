@@ -5,6 +5,7 @@ import { getDashboardSummary, deleteTransaction } from '../services/api';
 import Chart from '../components/Chart';
 import TransactionList from '../components/TransactionList';
 import { StatCard, PageHeader, LoadingSkeleton, EmptyState } from '../components/ui';
+import { useTheme } from '../context/ThemeContext';
 
 const Dashboard = () => {
   const [summary, setSummary] = useState(null);
@@ -41,6 +42,9 @@ const Dashboard = () => {
       }
     }
   };
+
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -109,6 +113,9 @@ const Dashboard = () => {
     ],
   };
 
+  const tickColor   = isDark ? '#94a3b8' : '#64748b';
+  const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -117,58 +124,32 @@ const Dashboard = () => {
         display: false,
       },
       tooltip: {
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        titleColor: '#0f172a',
-        bodyColor: '#475569',
-        borderColor: '#e2e8f0',
+        backgroundColor: isDark ? 'rgba(30,41,59,0.97)' : 'rgba(255,255,255,0.97)',
+        titleColor: isDark ? '#f1f5f9' : '#0f172a',
+        bodyColor:  isDark ? '#94a3b8'  : '#475569',
+        borderColor: isDark ? '#334155' : '#e2e8f0',
         borderWidth: 1,
         padding: 12,
         cornerRadius: 12,
-        titleFont: {
-          family: 'Outfit',
-          size: 14,
-          weight: '600',
-        },
-        bodyFont: {
-          family: 'JetBrains Mono',
-          size: 13,
-        },
+        titleFont: { family: 'Outfit', size: 14, weight: '600' },
+        bodyFont:  { family: 'JetBrains Mono', size: 13 },
         callbacks: {
-          label: function(context) {
-            return formatCurrency(context.raw);
-          }
+          label: function(context) { return formatCurrency(context.raw); }
         }
       }
     },
     scales: {
       x: {
-        grid: {
-          display: false,
-        },
-        ticks: {
-          font: {
-            family: 'Outfit',
-            size: 13,
-            weight: '500',
-          },
-          color: '#64748b',
-        }
+        grid: { display: false },
+        ticks: { font: { family: 'Outfit', size: 13, weight: '500' }, color: tickColor }
       },
       y: {
         beginAtZero: true,
-        grid: {
-          color: 'rgba(0, 0, 0, 0.05)',
-          borderDash: [5, 5],
-        },
+        grid: { color: gridColor, borderDash: [5, 5] },
         ticks: {
-          font: {
-            family: 'JetBrains Mono',
-            size: 12,
-          },
-          color: '#64748b',
-          callback: function(value) {
-            return '$' + value.toLocaleString();
-          }
+          font: { family: 'JetBrains Mono', size: 12 },
+          color: tickColor,
+          callback: function(value) { return '$' + value.toLocaleString(); }
         }
       }
     }

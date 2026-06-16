@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTheme } from '../../context/ThemeContext';
 
 // Predefined SVG icons for finance categories
 const svgIcons = {
@@ -81,7 +82,8 @@ const IconPicker = ({ selectedIcon, selectedType, onIconSelect }) => {
   const [activeTab, setActiveTab] = useState(selectedType || 'svg');
   const [activeCategory, setActiveCategory] = useState('income');
   const [searchQuery, setSearchQuery] = useState('');
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const filteredBootstrap = bootstrapIcons.filter(icon =>
     icon.toLowerCase().includes(searchQuery.toLowerCase())
@@ -95,11 +97,11 @@ const IconPicker = ({ selectedIcon, selectedType, onIconSelect }) => {
     <div>
       {/* Type tabs */}
       <div className="d-flex gap-2 mb-3">
-        {[
-          { key: 'svg', label: 'Iconos SVG', icon: 'bi-vector-pen' },
-          { key: 'bootstrap', label: 'Bootstrap Icons', icon: 'bi-grid' },
-        ].map((tab) => (
-          <button
+{[
+            { key: 'svg', label: 'Iconos SVG', icon: 'bi-vector-pen' },
+            { key: 'bootstrap', label: 'Bootstrap Icons', icon: 'bi-grid' },
+          ].map((tab) => (
+            <button type="button"
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             style={{
@@ -130,7 +132,7 @@ const IconPicker = ({ selectedIcon, selectedType, onIconSelect }) => {
             { key: 'income', label: 'Ingresos' },
             { key: 'expense', label: 'Gastos' },
           ].map((tab) => (
-            <button
+            <button type="button"
               key={tab.key}
               onClick={() => setActiveCategory(tab.key)}
               style={{
@@ -183,6 +185,7 @@ const IconPicker = ({ selectedIcon, selectedType, onIconSelect }) => {
           {filteredSvgIcons.map((item) => (
             <button
               key={item.name}
+              type="button"
               onClick={() => onIconSelect(item.icon, 'svg')}
               title={item.name}
               style={{
@@ -222,6 +225,7 @@ const IconPicker = ({ selectedIcon, selectedType, onIconSelect }) => {
           {filteredBootstrap.map((iconName) => (
             <button
               key={iconName}
+              type="button"
               onClick={() => onIconSelect(iconName, 'bootstrap')}
               title={iconName}
               style={{

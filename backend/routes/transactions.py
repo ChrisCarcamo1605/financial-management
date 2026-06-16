@@ -2,8 +2,10 @@ from flask import Blueprint, request, jsonify
 from models.transaction import Transaction
 from models.account import Account
 from models.category import Category
+from models.loan import Loan
 from models import db
 from utils.decorators import token_required
+from services.loan_payment import sync_loan_from_transactions
 from datetime import datetime, date
 from sqlalchemy import func
 from decimal import Decimal
@@ -96,22 +98,34 @@ def create_transaction(user_id, user_email):
     
     if data['type'] not in ['income', 'expense']:
         return jsonify({'error': 'Transaction type must be "income" or "expense"'}), 400
-    
+
+    # Un abono a préstamo es siempre un gasto.
+    loan_id = data.get('loan_id')
+    if loan_id and data['type'] != 'expense':
+        return jsonify({'error': 'A loan payment must be an expense'}), 400
+
     try:
         # Verificar que la cuenta existe y pertenece al usuario
         account = Account.query.filter_by(id=data['account_id'], user_id=user_id).first()
         if not account:
             return jsonify({'error': 'Account not found'}), 404
-        
+
         # Verificar que la categoría existe y pertenece al usuario
         category = Category.query.filter_by(id=data['category_id'], user_id=user_id).first()
         if not category:
             return jsonify({'error': 'Category not found'}), 404
-        
+
         # Verificar que la categoría coincide con el tipo de transacción
         if category.type != data['type']:
             return jsonify({'error': f'Category type mismatch. Expected: {category.type}'}), 400
-        
+
+        # Validar el préstamo si la transacción es un abono
+        loan = None
+        if loan_id:
+            loan = Loan.query.filter_by(id=loan_id, user_id=user_id).first()
+            if not loan:
+                return jsonify({'error': 'Loan not found'}), 404
+
         # Crear transacción
         transaction = Transaction(
             user_id=user_id,
@@ -120,7 +134,9 @@ def create_transaction(user_id, user_email):
             amount=Decimal(str(data['amount'])),
             type=data['type'],
             description=data.get('description'),
-            date=date.fromisoformat(data['date']) if isinstance(data['date'], str) else data['date']
+            date=date.fromisoformat(data['date']) if isinstance(data['date'], str) else data['date'],
+            loan_id=loan_id or None,
+            recurring_service_id=data.get('recurring_service_id') or None,
         )
 
         # Actualizar balance de la cuenta
@@ -129,10 +145,16 @@ def create_transaction(user_id, user_email):
             account.balance += amount
         else:
             account.balance -= amount
-        
+
         db.session.add(transaction)
+        db.session.flush()
+
+        # Aplicar el abono al préstamo (recalcula sus cuotas).
+        if loan:
+            sync_loan_from_transactions(loan)
+
         db.session.commit()
-        
+
         return jsonify(transaction.to_dict_with_relations()), 201
     except ValueError as e:
         return jsonify({'error': f'Invalid date format. Use YYYY-MM-DD: {str(e)}'}), 400
@@ -155,14 +177,19 @@ def update_transaction(user_id, user_email, transaction_id):
     
     try:
         transaction = Transaction.query.filter_by(id=transaction_id, user_id=user_id).first()
-        
+
         if not transaction:
             return jsonify({'error': 'Transaction not found'}), 404
-        
+
         # Validar tipo si se proporciona
         if 'type' in data and data['type'] not in ['income', 'expense']:
             return jsonify({'error': 'Transaction type must be "income" or "expense"'}), 400
-        
+
+        # Préstamos afectados (para recalcular sus cuotas al final).
+        affected_loan_ids = set()
+        if transaction.loan_id:
+            affected_loan_ids.add(transaction.loan_id)
+
         # Revertir el balance anterior
         old_account = Account.query.filter_by(id=transaction.account_id, user_id=user_id).first()
         if old_account:
@@ -196,6 +223,18 @@ def update_transaction(user_id, user_email, transaction_id):
         if 'date' in data:
             transaction.date = date.fromisoformat(data['date']) if isinstance(data['date'], str) else data['date']
 
+        if 'loan_id' in data:
+            new_loan_id = data['loan_id'] or None
+            if new_loan_id:
+                loan = Loan.query.filter_by(id=new_loan_id, user_id=user_id).first()
+                if not loan:
+                    return jsonify({'error': 'Loan not found'}), 404
+                if transaction.type != 'expense':
+                    return jsonify({'error': 'A loan payment must be an expense'}), 400
+            transaction.loan_id = new_loan_id
+            if new_loan_id:
+                affected_loan_ids.add(new_loan_id)
+
         # Aplicar nuevo balance
         current_account = Account.query.filter_by(id=transaction.account_id, user_id=user_id).first()
         if current_account:
@@ -203,9 +242,17 @@ def update_transaction(user_id, user_email, transaction_id):
                 current_account.balance += transaction.amount
             else:
                 current_account.balance -= transaction.amount
-        
+
+        db.session.flush()
+
+        # Recalcular las cuotas de los préstamos afectados (vínculo viejo y nuevo).
+        for lid in affected_loan_ids:
+            loan = Loan.query.filter_by(id=lid, user_id=user_id).first()
+            if loan:
+                sync_loan_from_transactions(loan)
+
         db.session.commit()
-        
+
         return jsonify(transaction.to_dict_with_relations()), 200
     except ValueError as e:
         return jsonify({'error': f'Invalid date format: {str(e)}'}), 400
@@ -236,10 +283,20 @@ def delete_transaction(user_id, user_email, transaction_id):
                 account.balance -= transaction.amount
             else:
                 account.balance += transaction.amount
-        
+
+        loan_id = transaction.loan_id
+
         db.session.delete(transaction)
+        db.session.flush()
+
+        # Recalcular las cuotas del préstamo tras quitar el abono.
+        if loan_id:
+            loan = Loan.query.filter_by(id=loan_id, user_id=user_id).first()
+            if loan:
+                sync_loan_from_transactions(loan)
+
         db.session.commit()
-        
+
         return jsonify({'message': 'Transacción eliminada exitosamente'}), 200
     except Exception as e:
         db.session.rollback()

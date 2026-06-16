@@ -15,8 +15,17 @@ class Transaction(db.Model):
     type = db.Column(db.String(10), nullable=False)  # 'income' o 'expense'
     description = db.Column(db.Text, nullable=True)
     date = db.Column(db.Date, nullable=False, index=True)
+    # Si la transacción es un abono a un préstamo, apunta a éste (gasto vinculado).
+    loan_id = db.Column(db.Integer, db.ForeignKey('loans.id'), nullable=True, index=True)
+    # Si fue generada por un servicio recurrente, apunta a éste.
+    recurring_service_id = db.Column(
+        db.Integer, db.ForeignKey('recurring_services.id'), nullable=True, index=True
+    )
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Préstamo al que abona la transacción (si loan_id está presente).
+    loan = db.relationship('Loan')
 
     def to_dict(self):
         """Convertir el modelo a diccionario."""
@@ -29,6 +38,8 @@ class Transaction(db.Model):
             'type': self.type,
             'description': self.description,
             'date': self.date.isoformat() if self.date else None,
+            'loan_id': self.loan_id,
+            'recurring_service_id': self.recurring_service_id,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
@@ -38,6 +49,7 @@ class Transaction(db.Model):
         data = self.to_dict()
         data['account_name'] = self.account.name if self.account else None
         data['category_name'] = self.category.name if self.category else None
+        data['loan_name'] = self.loan.name if self.loan else None
         return data
 
     def __repr__(self):

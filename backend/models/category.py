@@ -12,7 +12,9 @@ class Category(db.Model):
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(10), nullable=False)  # 'income' o 'expense'
     color = db.Column(db.String(7), nullable=True)  # Hex color (#FF5733)
-    icon = db.Column(db.String(50), nullable=True)  # Icon name
+    # 'bootstrap' guarda el nombre del icono (bi-*); 'svg' guarda el markup SVG completo.
+    icon = db.Column(db.Text, nullable=True)
+    icon_type = db.Column(db.String(10), nullable=False, default='bootstrap')  # 'bootstrap' | 'svg'
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -29,6 +31,7 @@ class Category(db.Model):
             'type': self.type,
             'color': self.color,
             'icon': self.icon,
+            'iconType': self.icon_type,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }

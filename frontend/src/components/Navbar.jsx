@@ -46,6 +46,9 @@ const AppNavbar = () => {
     { path: '/accounts', icon: 'bank', label: 'Cuentas' },
     { path: '/categories', icon: 'tags', label: 'Categorías' },
     { path: '/budgets', icon: 'pie-chart', label: 'Presupuestos' },
+    { path: '/fuentes-ingreso', icon: 'cash-stack', label: 'Ingresos' },
+    { path: '/prestamos', icon: 'credit-card', label: 'Préstamos' },
+    { path: '/quincenas', icon: 'calendar2-week', label: 'Quincenas' },
     { path: '/reports', icon: 'graph-up', label: 'Reportes' },
     { path: '/analytics', icon: 'bar-chart-line', label: 'Analytics' },
   ];

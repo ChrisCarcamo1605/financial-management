@@ -76,12 +76,17 @@ def create_category(user_id, user_email):
         if existing:
             return jsonify({'error': 'Category with this name already exists'}), 400
         
+        icon_type = data.get('iconType', 'bootstrap')
+        if icon_type not in ('bootstrap', 'svg'):
+            icon_type = 'bootstrap'
+
         category = Category(
             user_id=user_id,
             name=data['name'],
             type=data['type'],
             color=data.get('color'),
-            icon=data.get('icon')
+            icon=data.get('icon'),
+            icon_type=icon_type
         )
         
         db.session.add(category)
@@ -123,7 +128,9 @@ def update_category(user_id, user_email, category_id):
             category.color = data['color']
         if 'icon' in data:
             category.icon = data['icon']
-        
+        if 'iconType' in data and data['iconType'] in ('bootstrap', 'svg'):
+            category.icon_type = data['iconType']
+
         db.session.commit()
         
         return jsonify(category.to_dict()), 200

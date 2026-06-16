@@ -8,12 +8,20 @@ from models.account import Account
 from models.category import Category
 from models.transaction import Transaction
 from models.budget import Budget
+from models.income_source import IncomeSource
+from models.loan import Loan
+from models.loan_payment import LoanPayment
+from models.recurring_service import RecurringService
 from routes.auth import auth_bp
 from routes.accounts import accounts_bp
 from routes.categories import categories_bp
 from routes.transactions import transactions_bp
 from routes.budgets import budgets_bp
 from routes.analytics import analytics_bp
+from routes.income_sources import income_sources_bp
+from routes.loans import loans_bp
+from routes.quincenas import quincenas_bp
+from routes.recurring_services import recurring_services_bp
 from datetime import datetime, date, timedelta
 from sqlalchemy import func
 
@@ -41,7 +49,7 @@ def create_app():
         app,
         version='1.0',
         title='Financial Management API',
-        description='API para gestión financiera personal con Supabase auth',
+        description='API para gestión financiera personal',
         doc='/api/docs',
         prefix='/api',
         authorizations={
@@ -78,6 +86,10 @@ def create_app():
     app.register_blueprint(transactions_bp)
     app.register_blueprint(budgets_bp)
     app.register_blueprint(analytics_bp, url_prefix='/api')
+    app.register_blueprint(income_sources_bp)
+    app.register_blueprint(loans_bp)
+    app.register_blueprint(quincenas_bp)
+    app.register_blueprint(recurring_services_bp)
 
     # ========================
     # Swagger Model Definitions
@@ -145,20 +157,19 @@ def create_app():
         def get(self):
             """Obtener resumen del dashboard"""
             from flask import request
-            from services.supabase_auth import SupabaseAuthService
+            from services.auth_service import AuthService
 
-            auth_header = request.headers.get('Authorization')
-            if not auth_header:
+            auth_header = request.headers.get('Authorization', '')
+            parts = auth_header.split(' ')
+            if len(parts) != 2:
                 return {'error': 'Authentication required'}, 401
 
             try:
-                token = auth_header.split(" ")[1]
-                user = SupabaseAuthService.verify_token(token)
-
-                if not user:
+                payload = AuthService.decode_access_token(parts[1])
+                if not payload:
                     return {'error': 'Invalid or expired token'}, 401
 
-                user_id = user['id']
+                user_id = payload['sub']
 
                 accounts = Account.query.filter_by(user_id=user_id).all()
                 total_balance = sum(float(acc.balance) for acc in accounts)

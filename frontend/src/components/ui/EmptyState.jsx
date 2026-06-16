@@ -17,8 +17,8 @@ const EmptyState = ({
             {illustration}
           </div>
         ) : (
-          <div 
-            className="mb-4 d-flex align-items-center justify-content-center"
+          <div
+            className="empty-state-icon mb-4 d-flex align-items-center justify-content-center"
             style={{
               width: '100px',
               height: '100px',
@@ -27,11 +27,11 @@ const EmptyState = ({
               margin: '0 auto',
             }}
           >
-            <i 
+            <i
               className={`bi bi-${icon}`}
-              style={{ 
-                fontSize: '3rem', 
-                color: 'var(--slate-400)' 
+              style={{
+                fontSize: '3rem',
+                color: 'var(--slate-500)'
               }}
             ></i>
           </div>

@@ -1,71 +1,42 @@
 from functools import wraps
-from flask import request, jsonify, current_app, make_response
-from services.supabase_auth import SupabaseAuthService
+from flask import request, jsonify, make_response
+from services.auth_service import AuthService
 
 
 def token_required(f):
-    """
-    Decorador para verificar el token JWT de Supabase en cada petición.
-    Extrae el user_id del token y lo inyecta en los argumentos de la función.
-    """
+    """Valida el JWT de acceso propio e inyecta user_id / user_email en la ruta."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Return empty 200 response for OPTIONS requests (CORS preflight)
         if request.method == 'OPTIONS':
-            resp = make_response('', 200)
-            return resp
+            return make_response('', 200)
 
-        token = None
+        auth_header = request.headers.get('Authorization', '')
+        parts = auth_header.split(' ')
+        if len(parts) != 2 or parts[0].lower() != 'bearer':
+            return jsonify({'error': 'Token de autenticación requerido'}), 401
 
-        # Obtener token del header Authorization
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            try:
-                # Formato: "Bearer <token>"
-                token = auth_header.split(" ")[1]
-            except IndexError:
-                return jsonify({'error': 'Invalid token format. Use: Bearer <token>'}), 401
+        payload = AuthService.decode_access_token(parts[1])
+        if not payload:
+            return jsonify({'error': 'Token inválido o expirado'}), 401
 
-        if not token:
-            return jsonify({'error': 'Authentication token is required'}), 401
-
-        # Verificar el token
-        user = SupabaseAuthService.verify_token(token)
-
-        if not user:
-            return jsonify({'error': 'Invalid or expired token'}), 401
-
-        # Inyectar user_id en los kwargs para usar en la ruta
-        kwargs['user_id'] = user['id']
-        kwargs['user_email'] = user.get('email')
-
+        kwargs['user_id'] = payload['sub']
+        kwargs['user_email'] = payload.get('email')
         return f(*args, **kwargs)
 
     return decorated
 
 
 def optional_token(f):
-    """
-    Decorador para rutas donde el token es opcional.
-    Si hay token, lo verifica y agrega user_id. Si no, continúa sin error.
-    """
+    """Como token_required pero no falla si no hay token."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = None
-
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            try:
-                token = auth_header.split(" ")[1]
-                user = SupabaseAuthService.verify_token(token)
-
-                if user:
-                    kwargs['user_id'] = user['id']
-                    kwargs['user_email'] = user.get('email')
-            except Exception:
-                # Si hay error con el token, continuar sin user_id
-                pass
-
+        auth_header = request.headers.get('Authorization', '')
+        parts = auth_header.split(' ')
+        if len(parts) == 2 and parts[0].lower() == 'bearer':
+            payload = AuthService.decode_access_token(parts[1])
+            if payload:
+                kwargs['user_id'] = payload['sub']
+                kwargs['user_email'] = payload.get('email')
         return f(*args, **kwargs)
 
     return decorated
