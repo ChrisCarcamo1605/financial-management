@@ -2,8 +2,6 @@
 Analytics service using pandas for advanced data processing.
 Provides aggregation, trend analysis, and forecasting capabilities.
 """
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta, date
 from sqlalchemy import func
 from models import db
@@ -20,15 +18,16 @@ class AnalyticsService:
     def get_transactions_dataframe(user_id, start_date=None, end_date=None):
         """
         Fetch transactions and convert to pandas DataFrame.
-        
+
         Args:
             user_id: User ID
             start_date: Start date filter (YYYY-MM-DD or date object)
             end_date: End date filter (YYYY-MM-DD or date object)
-            
+
         Returns:
             pandas DataFrame with transaction data
         """
+        import pandas as pd
         query = Transaction.query.filter_by(user_id=user_id)
         
         if start_date:
@@ -156,6 +155,7 @@ class AnalyticsService:
         resampled_df.rename(columns={'index': 'date'}, inplace=True)
 
         # Convert dates to ISO format
+        import pandas as pd
         cash_flow = resampled_df.to_dict('records')
         for item in cash_flow:
             if isinstance(item.get('date'), (datetime, pd.Timestamp)):
@@ -229,6 +229,8 @@ class AnalyticsService:
         pivot_df.rename(columns={'index': 'date'}, inplace=True)
 
         # Convert to list
+        import pandas as pd
+        import numpy as np
         trends = pivot_df.to_dict('records')
 
         # Convert dates and replace NaN with null for valid JSON serialization
@@ -386,6 +388,7 @@ class AnalyticsService:
     @staticmethod
     def _generate_insights(df, pivot_df):
         """Generate analytical insights from data."""
+        import pandas as pd
         insights = {}
 
         # Overall trends
