@@ -35,6 +35,9 @@ class Budget(db.Model):
         """Convertir a diccionario incluyendo relaciones."""
         data = self.to_dict()
         data['category_name'] = self.category.name if self.category else None
+        data['category_color'] = self.category.color if self.category else None
+        data['category_icon'] = self.category.icon if self.category else None
+        data['category_icon_type'] = self.category.icon_type if self.category else None
         return data
 
     def get_spent(self):

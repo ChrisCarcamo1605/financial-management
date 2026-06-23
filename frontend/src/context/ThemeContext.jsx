@@ -8,7 +8,7 @@ const DEFAULTS = { theme: 'dark', accent_color: '#10b981', currency: 'USD', date
 const CACHE_KEY = 'caudal_prefs';
 
 export const ACCENT_OPTIONS = [
-  '#10b981', '#8b5cf6', '#06b6d4', '#3b82f6', '#f59e0b', '#ec4899', '#f87171',
+  '#10b981', '#8b5cf6', '#06b6d4', '#3b82f6', '#f59e0b', '#ec4899', '#c60000', '#d9dd02'
 ];
 
 function applyPrefs(prefs) {

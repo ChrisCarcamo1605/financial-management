@@ -3,23 +3,28 @@ import toast from 'react-hot-toast';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { Loading } from '../components/State';
+import Icon from '../components/Icon';
+import IconPicker from '../components/IconPicker';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme, ACCENT_OPTIONS } from '../context/ThemeContext';
 import api from '../lib/api';
 import { money } from '../lib/format';
+import useConfirm from '../hooks/useConfirm';
 
-const CAT_ICONS = ['🍽️', '🛒', '🚗', '🏠', '⚡', '💊', '🎬', '💰', '✈️', '🎓', '🐖', '📱'];
-const CAT_COLORS = ['#10b981', '#f59e0b', '#f87171', '#8b5cf6', '#06b6d4', '#ec4899', '#3b82f6'];
+const CAT_COLORS = ['#10b981', '#f59e0b', '#f87171', '#06b6d4', '#ec4899', '#3b82f6', '#f97316', '#eab308', '#6366f1', '#db2777', '#f43f5e', '#22c55e', '#a855f7', '#b50000'];
 
 function CategoryModal({ cat, defaultType, onClose, onSaved }) {
-  const [form, setForm] = useState(cat ? { ...cat } : { name: '', type: defaultType, color: '#10b981', icon: '🍽️', icon_type: 'emoji' });
+  const [form, setForm] = useState(cat
+    ? { name: cat.name, type: cat.type, color: cat.color || '#10b981', icon: cat.icon || 'tag', iconType: 'registry' }
+    : { name: '', type: defaultType, color: '#10b981', icon: 'tag', iconType: 'registry' });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [confirmDelete, ConfirmUI] = useConfirm();
 
   async function save() {
     if (!form.name) { toast.error('Escribe un nombre'); return; }
     setBusy(true);
-    const payload = { name: form.name, type: form.type, color: form.color, icon: form.icon, iconType: form.icon_type || 'emoji' };
+    const payload = { name: form.name, type: form.type, color: form.color, icon: form.icon, iconType: 'registry' };
     try {
       if (cat?.id) await api.put(`/api/categories/${cat.id}`, payload);
       else await api.post('/api/categories', payload);
@@ -29,13 +34,13 @@ function CategoryModal({ cat, defaultType, onClose, onSaved }) {
     finally { setBusy(false); }
   }
   async function remove() {
-    if (!confirm('¿Eliminar categoría?')) return;
+    if (!await confirmDelete({ title: '¿Eliminar categoría?' })) return;
     try { await api.delete(`/api/categories/${cat.id}`); toast.success('Eliminada'); onSaved(); }
     catch (e) { toast.error(e?.response?.data?.message || 'No se pudo eliminar (¿tiene presupuestos?)'); }
   }
 
   return (
-    <Modal title={cat ? 'Editar categoría' : 'Nueva categoría'} onClose={onClose} footer={
+    <Modal title={cat ? 'Editar categoría' : 'Nueva categoría'} onClose={onClose} maxWidth={500} footer={
       <>
         {cat?.id && <button className="btn btn-danger push" onClick={remove}>Eliminar</button>}
         <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
@@ -50,7 +55,8 @@ function CategoryModal({ cat, defaultType, onClose, onSaved }) {
         </div>
       </div>
       <div className="field"><label>Color</label><div className="swatches">{CAT_COLORS.map((c) => <span key={c} className={`sw${form.color === c ? ' sel' : ''}`} style={{ background: c }} onClick={() => setForm((f) => ({ ...f, color: c }))} />)}</div></div>
-      <div className="field"><label>Icono</label><div className="icon-grid">{CAT_ICONS.map((ic) => <span key={ic} className={`ic-opt${form.icon === ic ? ' sel' : ''}`} onClick={() => setForm((f) => ({ ...f, icon: ic, icon_type: 'emoji' }))}>{ic}</span>)}</div></div>
+      <div className="field"><label>Icono</label><IconPicker value={form.icon} onChange={(key) => setForm((f) => ({ ...f, icon: key }))} /></div>
+      {ConfirmUI}
     </Modal>
   );
 }
@@ -77,7 +83,7 @@ export default function Settings() {
         {/* Appearance */}
         <div className="panel" style={{ marginBottom: 16 }}>
           <div className="panel-head"><div><div className="m-title" style={{ fontSize: 14 }}>Apariencia</div><div className="mute" style={{ fontSize: 12 }}>Color de acento y tema · se guarda en tu cuenta</div></div></div>
-          <div className="panel-pad" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+          <div className="panel-pad g2" style={{ gap: 20, alignItems: 'start' }}>
             <div>
               <div className="field" style={{ marginBottom: 16 }}>
                 <label>Color de acento</label>
@@ -128,10 +134,10 @@ export default function Settings() {
             {catQ.loading ? <Loading rows={4} /> : shown.length === 0 ? (
               <div className="empty-sub" style={{ color: 'var(--t3)' }}>Sin categorías de {catType === 'expense' ? 'gasto' : 'ingreso'}</div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
+              <div className="g2" style={{ gap: 8 }}>
                 {shown.map((c) => (
                   <div key={c.id} className="preview-box" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer' }} onClick={() => { setEditing(c); setOpen(true); }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, background: `color-mix(in srgb, ${c.color || 'var(--accent)'} 16%, transparent)`, flexShrink: 0 }}>{c.icon && (c.icon_type === 'emoji' || !c.icon.includes('<')) ? c.icon : '•'}</div>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${c.color || 'var(--accent)'} 16%, transparent)`, color: c.color || 'var(--accent)', flexShrink: 0 }}><Icon icon={c.icon} iconType={c.iconType} size={16} /></div>
                     <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div><div className="mute" style={{ fontSize: 11 }}>{c.type === 'income' ? 'Ingreso' : 'Gasto'}</div></div>
                   </div>
                 ))}

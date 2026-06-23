@@ -7,6 +7,7 @@ import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
 import { money } from '../lib/format';
+import useConfirm from '../hooks/useConfirm';
 
 const MODALITIES = [
   { v: 'planilla', l: 'Planilla' },
@@ -24,6 +25,7 @@ function IncomeModal({ source, onClose, onSaved }) {
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [confirmDelete, ConfirmUI] = useConfirm();
 
   // live net preview when gross / modality change
   useEffect(() => {
@@ -51,7 +53,7 @@ function IncomeModal({ source, onClose, onSaved }) {
   }
 
   async function remove() {
-    if (!confirm('¿Eliminar fuente de ingreso?')) return;
+    if (!await confirmDelete({ title: '¿Eliminar fuente de ingreso?' })) return;
     try { await api.delete(`/api/income-sources/${source.id}`); toast.success('Eliminada'); onSaved(); }
     catch (e) { toast.error(e?.response?.data?.message || 'No se pudo eliminar'); }
   }
@@ -80,6 +82,7 @@ function IncomeModal({ source, onClose, onSaved }) {
           <div className="pb-row total"><span className="lbl">Neto</span><span className="val num">{money(preview.net ?? preview.net_amount, form.currency)}</span></div>
         </div>
       )}
+      {ConfirmUI}
     </Modal>
   );
 }
@@ -102,7 +105,7 @@ export default function IncomeSources() {
         {q.loading ? <Loading /> : q.error ? <ErrorState error={q.error} onRetry={q.refetch} /> : sources.length === 0 ? (
           <EmptyState title="Sin fuentes de ingreso" sub="Registra tu salario u otras fuentes" action={<button className="btn btn-primary" onClick={() => setOpen(true)}><PlusIcon /> Nueva fuente</button>} />
         ) : (
-          <div className="tbl-wrap">
+          <div className="tbl-wrap tbl-scroll">
             <table>
               <thead><tr><th>Nombre</th><th>Modalidad</th><th>Frecuencia</th><th style={{ textAlign: 'right' }}>Bruto</th><th style={{ textAlign: 'right' }}>Neto</th></tr></thead>
               <tbody>

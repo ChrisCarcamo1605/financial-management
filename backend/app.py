@@ -154,25 +154,20 @@ def create_app():
     @dashboard_ns.route('/summary')
     class DashboardSummaryResource(Resource):
         @dashboard_ns.doc('dashboard_summary')
-        @dashboard_ns.doc(security='BearerAuth')
-        @dashboard_ns.doc(params={'Authorization': {'in': 'header', 'description': 'Bearer token', 'type': 'apiKey'}})
-        @dashboard_ns.marshal_with(dashboard_summary_model, code=200, description='Dashboard summary retrieved')
-        @dashboard_ns.response(401, 'Authentication error', error_model)
-        @dashboard_ns.response(500, 'Server error', error_model)
         def get(self):
             """Obtener resumen del dashboard"""
-            from flask import request
+            from flask import request, jsonify
             from services.auth_service import AuthService
 
             auth_header = request.headers.get('Authorization', '')
             parts = auth_header.split(' ')
             if len(parts) != 2:
-                return {'error': 'Authentication required'}, 401
+                return jsonify({'error': 'Authentication required'}), 401
 
             try:
                 payload = AuthService.decode_access_token(parts[1])
                 if not payload:
-                    return {'error': 'Invalid or expired token'}, 401
+                    return jsonify({'error': 'Invalid or expired token'}), 401
 
                 user_id = payload['sub']
 
@@ -220,20 +215,20 @@ def create_app():
                     .all()
                 budgets_status = [budget.to_dict_full() for budget in budgets]
 
-                return {
+                return jsonify({
                     'total_balance': total_balance,
                     'monthly_income': monthly_income,
                     'monthly_expense': monthly_expense,
                     'monthly_net': monthly_net,
                     'recent_transactions': [t.to_dict_with_relations() for t in recent_transactions],
                     'accounts': [acc.to_dict() for acc in accounts],
-                    'budgets_status': budgets_status
-                }, 200
+                    'budgets_status': budgets_status,
+                })
 
             except IndexError:
-                return {'error': 'Invalid token format'}, 401
+                return jsonify({'error': 'Invalid token format'}), 401
             except Exception as e:
-                return {'error': f'Authentication error: {str(e)}'}, 500
+                return jsonify({'error': f'Dashboard error: {str(e)}'}), 500
     
     # Manejo de errores global
     @app.errorhandler(404)

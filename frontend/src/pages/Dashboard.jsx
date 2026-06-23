@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import { Loading, ErrorState } from '../components/State';
 import { AreaLineChart, CategoryBars } from '../components/charts/Charts';
+import Icon from '../components/Icon';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import { money, signedMoney, fmtDateShort } from '../lib/format';
@@ -66,7 +67,7 @@ export default function Dashboard() {
       </PageHeader>
 
       <div className="content">
-        <div className="stats" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+        <div className="stats g4">
           <div className="stat">
             <div className="stat-lbl">Balance total</div>
             <div className="stat-val pos num">{money(d.total_balance, currency)}</div>
@@ -86,7 +87,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12, marginBottom: 14 }}>
+        <div className="g-asym" style={{ marginBottom: 14 }}>
           <div className="panel panel-pad">
             <div className="panel-head" style={{ padding: 0, border: 'none', marginBottom: 14 }}>
               <span className="panel-title">Flujo neto · {cf.length} meses</span>
@@ -112,7 +113,14 @@ export default function Dashboard() {
                 return (
                   <div key={b.id} style={{ marginBottom: 11 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <span style={{ fontSize: 12.5 }}>{b.category_name}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+                        {b.category_icon && (
+                          <span style={{ width: 18, height: 18, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${b.category_color || 'var(--accent)'} 16%, transparent)`, color: b.category_color || 'var(--accent)', flexShrink: 0 }}>
+                            <Icon icon={b.category_icon} iconType={b.category_icon_type} size={11} />
+                          </span>
+                        )}
+                        {b.category_name}
+                      </span>
                       <span className="mute num" style={{ fontSize: 11.5 }}>{money(b.spent, currency)} / {money(b.amount, currency)}</span>
                     </div>
                     <div className="bar-bg"><div className={`bar-fill ${cls}`} style={{ width: `${Math.min(100, p)}%` }} /></div>
@@ -141,7 +149,12 @@ export default function Dashboard() {
                 {recent.slice(0, 8).map((t) => (
                   <tr key={t.id}>
                     <td>{t.description || '—'}</td>
-                    <td><span className="chip">{t.category_name}</span></td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `color-mix(in srgb, ${t.category_color || 'var(--accent)'} 14%, transparent)`, color: t.category_color || 'var(--accent)', borderRadius: 6, padding: '2px 7px', fontSize: 12, fontWeight: 500 }}>
+                        <Icon icon={t.category_icon} iconType={t.category_icon_type} size={12} />
+                        {t.category_name}
+                      </span>
+                    </td>
                     <td className="mute">{t.account_name}</td>
                     <td className="mute">{fmtDateShort(t.date)}</td>
                     <td className={`amt ${t.type === 'income' ? 'pos' : 'neg'}`}>{signedMoney(t.amount, t.type, currency)}</td>

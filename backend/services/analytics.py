@@ -79,7 +79,10 @@ class AnalyticsService:
             transaction_count=('amount', 'count'),
             avg_amount=('amount', 'mean'),
             min_amount=('amount', 'min'),
-            max_amount=('amount', 'max')
+            max_amount=('amount', 'max'),
+            color=('category_color', 'first'),
+            icon=('category_icon', 'first'),
+            icon_type=('category_icon_type', 'first'),
         ).reset_index()
         
         # Calculate percentages

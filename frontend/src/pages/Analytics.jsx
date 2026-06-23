@@ -40,8 +40,8 @@ export default function Analytics() {
   const cats = useMemo(() => {
     const raw = byCat.data?.categories || byCat.data || [];
     return (Array.isArray(raw) ? raw : []).map((c, i) => {
-      const value = Number(c.total ?? c.amount ?? c.spent ?? 0);
-      return { name: c.category_name || c.name || `Categoría ${i + 1}`, value, label: money(value, currency), color: c.color || PALETTE[i % PALETTE.length] };
+      const value = Number(c.total_amount ?? c.total ?? c.amount ?? c.spent ?? 0);
+      return { name: c.category_name || c.name || `Categoría ${i + 1}`, value, label: money(value, currency), color: c.color || PALETTE[i % PALETTE.length], icon: c.icon || null, iconType: c.icon_type || null };
     }).sort((a, b) => b.value - a.value);
   }, [byCat.data, currency]);
 
@@ -74,7 +74,7 @@ export default function Analytics() {
               ) : <div className="empty" style={{ padding: 40 }}>Sin histórico suficiente</div>}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="g2" style={{ gap: 12 }}>
               <div className="panel panel-pad">
                 <div className="panel-head" style={{ padding: 0, border: 'none', marginBottom: 16 }}>
                   <span className="panel-title">Gasto por categoría</span>

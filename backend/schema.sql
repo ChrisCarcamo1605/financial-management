@@ -404,6 +404,7 @@ CREATE TABLE IF NOT EXISTS savings_goals (
     target_amount NUMERIC(15,2) NOT NULL,
     current_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
     per_quincena NUMERIC(15,2) NOT NULL DEFAULT 0,
+    per_quincena_q1 NUMERIC(15,2),
     color VARCHAR(7),
     icon TEXT,
     icon_type VARCHAR(10) NOT NULL DEFAULT 'emoji',
@@ -426,3 +427,28 @@ CREATE TABLE IF NOT EXISTS savings_contributions (
 CREATE INDEX IF NOT EXISTS idx_savings_contributions_goal ON savings_contributions(savings_goal_id);
 CREATE INDEX IF NOT EXISTS idx_savings_contributions_user_id ON savings_contributions(user_id);
 ALTER TABLE savings_contributions DISABLE ROW LEVEL SECURITY;
+
+-- Migration: per_quincena_q1 on savings_goals
+ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS per_quincena_q1 NUMERIC(15,2);
+
+-- Migration: auto-generation fields on savings_goals
+ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id);
+ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS day_q1 INTEGER;
+ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS day_q2 INTEGER;
+
+-- Migration: quincena_period on savings_contributions (duplicate protection)
+ALTER TABLE savings_contributions ADD COLUMN IF NOT EXISTS quincena_period VARCHAR(12);
+CREATE INDEX IF NOT EXISTS idx_savings_contributions_period ON savings_contributions(quincena_period);
+
+-- ============================================================================
+-- Migration: category_id + account_id en loans, transaction_id en loan_payments
+-- ============================================================================
+
+ALTER TABLE loans ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL;
+ALTER TABLE loans ADD COLUMN IF NOT EXISTS account_id  INTEGER REFERENCES accounts(id)   ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_loans_category_id ON loans(category_id);
+CREATE INDEX IF NOT EXISTS idx_loans_account_id  ON loans(account_id);
+
+-- Vincula cada cuota pagada con su transacción generada automáticamente.
+ALTER TABLE loan_payments ADD COLUMN IF NOT EXISTS transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_loan_payments_transaction_id ON loan_payments(transaction_id);

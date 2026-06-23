@@ -1,4 +1,10 @@
+import { useEffect } from 'react';
+import { useTitle } from '../context/TitleContext';
+
 export default function PageHeader({ title, children }) {
+  const { setTitle } = useTitle();
+  useEffect(() => { setTitle(title); return () => setTitle(''); }, [title, setTitle]);
+
   return (
     <div className="topbar">
       <span className="page-title">{title}</span>

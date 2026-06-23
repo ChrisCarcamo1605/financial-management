@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { Loading, ErrorState, EmptyState } from '../components/State';
+import Icon from '../components/Icon';
+import useConfirm from '../hooks/useConfirm';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
@@ -13,6 +15,7 @@ const empty = { type: 'expense', amount: '', description: '', date: isoDate(), a
 function TxModal({ tx, accounts, categories, onClose, onSaved }) {
   const [form, setForm] = useState(tx ? { ...tx } : empty);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, ConfirmUI] = useConfirm();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const cats = categories.filter((c) => c.type === form.type);
 
@@ -50,7 +53,7 @@ function TxModal({ tx, accounts, categories, onClose, onSaved }) {
         <>
           {tx?.id && (
             <button className="btn btn-danger push" onClick={async () => {
-              if (!confirm('¿Eliminar transacción?')) return;
+              if (!await confirmDelete({ title: '¿Eliminar transacción?', message: 'Esta acción no se puede deshacer.' })) return;
               try { await api.delete(`/api/transactions/${tx.id}`); toast.success('Eliminada'); onSaved(); }
               catch (e) { toast.error('No se pudo eliminar'); }
             }}>Eliminar</button>
@@ -88,6 +91,7 @@ function TxModal({ tx, accounts, categories, onClose, onSaved }) {
           </select>
         </div>
       </div>
+      {ConfirmUI}
     </Modal>
   );
 }
@@ -139,7 +143,7 @@ export default function Transactions() {
         {txQ.loading ? <Loading /> : txQ.error ? <ErrorState error={txQ.error} onRetry={txQ.refetch} /> : txs.length === 0 ? (
           <EmptyState title="Sin transacciones" sub="Registra tu primera transacción" action={<button className="btn btn-primary" onClick={openNew}><PlusIcon /> Nueva transacción</button>} />
         ) : (
-          <div className="tbl-wrap">
+          <div className="tbl-wrap tbl-scroll">
             <table>
               <thead>
                 <tr><th>Descripción</th><th>Categoría</th><th>Cuenta</th><th>Fecha</th><th style={{ textAlign: 'right' }}>Monto</th></tr>
@@ -148,7 +152,12 @@ export default function Transactions() {
                 {txs.map((t) => (
                   <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(t)}>
                     <td>{t.description || '—'}</td>
-                    <td><span className="chip">{t.category_name}</span></td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `color-mix(in srgb, ${t.category_color || 'var(--accent)'} 14%, transparent)`, color: t.category_color || 'var(--accent)', borderRadius: 6, padding: '2px 7px', fontSize: 12, fontWeight: 500 }}>
+                        <Icon icon={t.category_icon} size={12} />
+                        {t.category_name}
+                      </span>
+                    </td>
                     <td className="mute">{t.account_name}</td>
                     <td className="mute">{fmtDate(t.date)}</td>
                     <td className={`amt ${t.type === 'income' ? 'pos' : 'neg'}`}>{signedMoney(t.amount, t.type, currency)}</td>

@@ -21,7 +21,7 @@ from utils.decorators import token_required
 
 recurring_services_bp = Blueprint('recurring_services', __name__)
 
-VALID_ICON_TYPES = ('bootstrap', 'svg')
+VALID_ICON_TYPES = ('bootstrap', 'svg', 'emoji')
 
 
 def _clamp_day(year, month, day):
@@ -246,6 +246,89 @@ def generate_recurring_transactions(user_id, user_email):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Error generating transactions: {str(e)}'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Generación individual — crea la transacción de UN servicio para el mes.
+# ---------------------------------------------------------------------------
+
+@recurring_services_bp.route('/api/recurring-services/<int:service_id>/generate', methods=['POST'])
+@token_required
+def generate_single(user_id, user_email, service_id):
+    """Materializar la transacción de un servicio concreto para un mes.
+
+    Body: { "month": "YYYY-MM" }  (por defecto, el mes actual)
+
+    Respuesta:
+      201 → { status: "created", transaction: {...}, amount: float, surcharges: float }
+      200 → { status: "already_generated", transaction_id: int }
+      422 → { status: "missing_config", reason: str }
+    """
+    data = request.get_json() or {}
+    month_str = data.get('month')
+    try:
+        if month_str:
+            year, month = (int(x) for x in month_str.split('-')[:2])
+        else:
+            today = date.today()
+            year, month = today.year, today.month
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid month. Use YYYY-MM'}), 400
+
+    try:
+        s = RecurringService.query.filter_by(id=service_id, user_id=user_id).first()
+        if not s:
+            return jsonify({'error': 'Service not found'}), 404
+
+        if not s.category_id or not s.account_id:
+            return jsonify({
+                'status': 'missing_config',
+                'reason': 'El servicio necesita categoría y cuenta para generar una transacción',
+            }), 422
+
+        # Already generated this month?
+        exists = Transaction.query.filter(
+            Transaction.user_id == user_id,
+            Transaction.recurring_service_id == s.id,
+            extract('year', Transaction.date) == year,
+            extract('month', Transaction.date) == month,
+        ).first()
+        if exists:
+            return jsonify({'status': 'already_generated', 'transaction_id': exists.id}), 200
+
+        account = Account.query.filter_by(id=s.account_id, user_id=user_id).first()
+        if not account:
+            return jsonify({'status': 'missing_config', 'reason': 'Cuenta no encontrada'}), 422
+
+        period = f'{year}-{month:02d}'
+        surcharge_total = _surcharge_total(s.id, period)
+        total_amount = s.amount + surcharge_total
+
+        tx = Transaction(
+            user_id=user_id,
+            account_id=s.account_id,
+            category_id=s.category_id,
+            amount=total_amount,
+            type='expense',
+            description=s.name,
+            date=_clamp_day(year, month, s.day_of_month),
+            recurring_service_id=s.id,
+        )
+        account.balance -= total_amount
+        db.session.add(tx)
+        db.session.commit()
+
+        return jsonify({
+            'status': 'created',
+            'transaction': tx.to_dict() if hasattr(tx, 'to_dict') else {'id': tx.id},
+            'base_amount': float(s.amount),
+            'surcharge_total': float(surcharge_total),
+            'total_amount': float(total_amount),
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error generating transaction: {str(e)}'}), 500
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ class LoanPayment(db.Model):
     paid_amount = db.Column(db.Numeric(15, 2), nullable=False, default=0)
     status = db.Column(db.String(10), nullable=False, default='pending')  # 'pending' | 'paid'
     paid_date = db.Column(db.Date, nullable=True)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('transactions.id'), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -37,6 +38,7 @@ class LoanPayment(db.Model):
             'paid_amount': float(self.paid_amount or 0),
             'status': self.status,
             'paid_date': self.paid_date.isoformat() if self.paid_date else None,
+            'transaction_id': self.transaction_id,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }

@@ -1,4 +1,5 @@
 /* Lightweight dependency-free SVG charts, themed via CSS vars. */
+import Icon from '../Icon';
 
 function buildPath(points, w, h, pad = 8) {
   if (!points.length) return { line: '', area: '' };
@@ -113,7 +114,13 @@ export function CategoryBars({ items = [] }) {
         <div key={i} style={{ marginBottom: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13 }}>
-              <span className="dot" style={{ background: it.color, borderRadius: 2, width: 8, height: 8 }} />
+              {it.icon ? (
+                <span style={{ width: 18, height: 18, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${it.color} 16%, transparent)`, color: it.color, flexShrink: 0 }}>
+                  <Icon icon={it.icon} size={11} />
+                </span>
+              ) : (
+                <span className="dot" style={{ background: it.color, borderRadius: 2, width: 8, height: 8 }} />
+              )}
               {it.name}
             </span>
             <span style={{ fontSize: 13, fontWeight: 600 }} className="num">{it.label}</span>

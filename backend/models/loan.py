@@ -29,6 +29,8 @@ class Loan(db.Model):
     # Fecha de origen del préstamo (ancla del calendario) / fecha de pago si es único
     start_date = db.Column(db.Date, nullable=False)
     income_source_id = db.Column(db.Integer, db.ForeignKey('income_sources.id'), nullable=False, index=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True, index=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True, index=True)
     status = db.Column(db.String(10), nullable=False, default='active')  # 'active' | 'paid'
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -36,6 +38,8 @@ class Loan(db.Model):
     payments = db.relationship(
         'LoanPayment', backref='loan', lazy=True, cascade='all, delete-orphan'
     )
+    category = db.relationship('Category', foreign_keys=[category_id])
+    account = db.relationship('Account', foreign_keys=[account_id])
 
     def get_totals(self):
         """Calcular totales a partir de las cuotas materializadas.
@@ -65,6 +69,8 @@ class Loan(db.Model):
             'payment_day': self.payment_day,
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'income_source_id': self.income_source_id,
+            'category_id': self.category_id,
+            'account_id': self.account_id,
             'status': self.status,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
@@ -75,6 +81,11 @@ class Loan(db.Model):
         data = self.to_dict()
         data.update(self.get_totals())
         data['income_source_name'] = self.income_source.name if self.income_source else None
+        data['category_name'] = self.category.name if self.category else None
+        data['category_color'] = self.category.color if self.category else None
+        data['category_icon'] = self.category.icon if self.category else None
+        data['category_icon_type'] = self.category.icon_type if self.category else None
+        data['account_name'] = self.account.name if self.account else None
         data['payments'] = [p.to_dict() for p in sorted(self.payments, key=lambda x: x.due_date)]
         return data
 

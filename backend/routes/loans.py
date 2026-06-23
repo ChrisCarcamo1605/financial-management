@@ -2,6 +2,9 @@ from flask import Blueprint, request, jsonify
 from models.loan import Loan
 from models.loan_payment import LoanPayment
 from models.income_source import IncomeSource
+from models.transaction import Transaction
+from models.account import Account
+from models.category import Category
 from models import db
 from utils.decorators import token_required
 from services.loan_schedule import build_schedule
@@ -99,6 +102,16 @@ def create_loan(user_id, user_email):
         if not source:
             return jsonify({'error': 'Income source not found'}), 404
 
+        category_id = data.get('category_id')
+        if category_id:
+            if not Category.query.filter_by(id=category_id, user_id=user_id).first():
+                return jsonify({'error': 'Category not found'}), 404
+
+        account_id = data.get('account_id')
+        if account_id:
+            if not Account.query.filter_by(id=account_id, user_id=user_id).first():
+                return jsonify({'error': 'Account not found'}), 404
+
         loan = Loan(
             user_id=user_id,
             name=data['name'],
@@ -110,6 +123,8 @@ def create_loan(user_id, user_email):
             payment_day=data.get('payment_day'),
             start_date=_parse_date(data['start_date']),
             income_source_id=data['income_source_id'],
+            category_id=category_id,
+            account_id=account_id,
             status='active',
         )
         db.session.add(loan)
@@ -169,6 +184,16 @@ def update_loan(user_id, user_email, loan_id):
             if not source:
                 return jsonify({'error': 'Income source not found'}), 404
             loan.income_source_id = data['income_source_id']
+        if 'category_id' in data:
+            cid = data['category_id']
+            if cid and not Category.query.filter_by(id=cid, user_id=user_id).first():
+                return jsonify({'error': 'Category not found'}), 404
+            loan.category_id = cid or None
+        if 'account_id' in data:
+            aid = data['account_id']
+            if aid and not Account.query.filter_by(id=aid, user_id=user_id).first():
+                return jsonify({'error': 'Account not found'}), 404
+            loan.account_id = aid or None
         if 'status' in data:
             loan.status = data['status']
 
@@ -204,12 +229,13 @@ def delete_loan(user_id, user_email, loan_id):
         return jsonify({'error': f'Error deleting loan: {str(e)}'}), 500
 
 
-@loans_bp.route('/api/loan-payments/<int:payment_id>/pay', methods=['PATCH'])
+@loans_bp.route('/api/loans/loan-payments/<int:payment_id>/pay', methods=['PATCH'])
 @token_required
 def toggle_payment(user_id, user_email, payment_id):
-    """Marcar/desmarcar una cuota como pagada.
+    """Marcar/desmarcar una cuota como pagada y generar/eliminar la transacción.
 
     Body opcional: { "status": "paid|pending", "paid_date": "YYYY-MM-DD" }
+    Retorna el préstamo completo actualizado.
     """
     data = request.get_json() or {}
     try:
@@ -217,25 +243,57 @@ def toggle_payment(user_id, user_email, payment_id):
         if not payment:
             return jsonify({'error': 'Payment not found'}), 404
 
+        loan = payment.loan
         new_status = data.get('status', 'paid' if payment.status == 'pending' else 'pending')
         if new_status not in ('paid', 'pending'):
             return jsonify({'error': 'status must be "paid" or "pending"'}), 400
 
-        payment.status = new_status
+        paid_date = _parse_date(data['paid_date']) if data.get('paid_date') else date.today()
+
         if new_status == 'paid':
             payment.paid_amount = payment.amount
-            payment.paid_date = _parse_date(data['paid_date']) if data.get('paid_date') else date.today()
+            payment.paid_date = paid_date
+
+            # Generar transacción automáticamente si el préstamo tiene cuenta y categoría
+            if loan.account_id and loan.category_id:
+                account = Account.query.filter_by(id=loan.account_id, user_id=user_id).first()
+                tx = Transaction(
+                    user_id=user_id,
+                    account_id=loan.account_id,
+                    category_id=loan.category_id,
+                    amount=payment.amount,
+                    type='expense',
+                    description=f'{loan.name} · cuota {payment.installment_number}',
+                    date=paid_date,
+                    loan_id=loan.id,
+                )
+                db.session.add(tx)
+                db.session.flush()
+                payment.transaction_id = tx.id
+                if account:
+                    account.balance = Decimal(str(float(account.balance) - float(payment.amount)))
         else:
+            # Revertir: eliminar transacción vinculada y restaurar balance
+            if payment.transaction_id:
+                tx = Transaction.query.filter_by(id=payment.transaction_id, user_id=user_id).first()
+                if tx:
+                    account = Account.query.filter_by(id=tx.account_id, user_id=user_id).first()
+                    if account:
+                        account.balance = Decimal(str(float(account.balance) + float(tx.amount)))
+                    db.session.delete(tx)
+                payment.transaction_id = None
+
             payment.paid_amount = Decimal('0')
             payment.paid_date = None
 
-        # Actualizar estado del préstamo según sus cuotas
-        loan = payment.loan
+        payment.status = new_status
+
+        # Actualizar estado del préstamo
         all_paid = all(p.status == 'paid' for p in loan.payments)
         loan.status = 'paid' if all_paid else 'active'
 
         db.session.commit()
-        return jsonify(payment.to_dict()), 200
+        return jsonify(loan.to_dict_full()), 200
     except ValueError as e:
         db.session.rollback()
         return jsonify({'error': f'Invalid date format: {str(e)}'}), 400

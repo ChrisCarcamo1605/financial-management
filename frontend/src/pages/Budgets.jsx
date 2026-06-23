@@ -3,10 +3,12 @@ import toast from 'react-hot-toast';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { Loading, ErrorState, EmptyState } from '../components/State';
+import Icon from '../components/Icon';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
 import { money, isoDate } from '../lib/format';
+import useConfirm from '../hooks/useConfirm';
 
 function monthBounds() {
   const now = new Date();
@@ -21,6 +23,7 @@ function BudgetModal({ budget, categories, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const expenseCats = categories.filter((c) => c.type === 'expense');
+  const [confirmDelete, ConfirmUI] = useConfirm();
 
   async function save() {
     if (!form.category_id || !form.amount) { toast.error('Elige categoría y monto'); return; }
@@ -36,7 +39,7 @@ function BudgetModal({ budget, categories, onClose, onSaved }) {
   }
 
   async function remove() {
-    if (!confirm('¿Eliminar presupuesto?')) return;
+    if (!await confirmDelete({ title: '¿Eliminar presupuesto?' })) return;
     try { await api.delete(`/api/budgets/${budget.id}`); toast.success('Eliminado'); onSaved(); }
     catch { toast.error('No se pudo eliminar'); }
   }
@@ -64,6 +67,7 @@ function BudgetModal({ budget, categories, onClose, onSaved }) {
         <div className="field"><label>Inicio</label><input type="date" value={form.start_date} onChange={set('start_date')} /></div>
         <div className="field"><label>Fin</label><input type="date" value={form.end_date} onChange={set('end_date')} /></div>
       </div>
+      {ConfirmUI}
     </Modal>
   );
 }
@@ -94,8 +98,13 @@ export default function Budgets() {
               const cls = p >= 100 ? 'over' : p >= 85 ? 'warn' : '';
               return (
                 <div key={b.id} className="panel panel-pad" style={{ cursor: 'pointer' }} onClick={() => { setEditing(b); setOpen(true); }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{b.category_name}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
+                      <span style={{ width: 28, height: 28, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${b.category_color || 'var(--accent)'} 16%, transparent)`, color: b.category_color || 'var(--accent)', flexShrink: 0 }}>
+                        <Icon icon={b.category_icon} size={14} />
+                      </span>
+                      {b.category_name}
+                    </span>
                     <span className="badge">{b.period === 'weekly' ? 'Semanal' : 'Mensual'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>

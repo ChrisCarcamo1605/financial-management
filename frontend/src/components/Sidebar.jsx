@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCallback } from 'react';
+import { IoIosSettings } from "react-icons/io";
 
 const I = {
   dashboard: (
@@ -59,10 +61,7 @@ const I = {
     </svg>
   ),
   settings: (
-    <svg viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M13 3l-1.5 1.5M4.5 11.5L3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
+   <IoIosSettings />
   ),
 };
 
@@ -88,12 +87,17 @@ const NAV = [
   ]},
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
   const initials = (user?.email || 'U').slice(0, 2).toUpperCase();
 
+  // close sidebar when navigating on mobile
+  const handleNav = useCallback(() => {
+    if (window.innerWidth <= 768) onClose?.();
+  }, [onClose]);
+
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' sidebar-open' : ''}`}>
       <div className="sb-logo">
         <div className="logo-icon">
           <svg width="17" height="17" viewBox="0 0 16 16" fill="none">
@@ -112,6 +116,7 @@ export default function Sidebar() {
                 key={it.to}
                 to={it.to}
                 end={it.end}
+                onClick={handleNav}
                 className={({ isActive }) => `ni${isActive ? ' active' : ''}`}
               >
                 {it.icon}

@@ -7,6 +7,7 @@ import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
 import { money } from '../lib/format';
+import useConfirm from '../hooks/useConfirm';
 
 const CURRENCIES = ['USD', 'MXN', 'EUR'];
 
@@ -14,6 +15,7 @@ function AccountModal({ acc, onClose, onSaved }) {
   const [form, setForm] = useState(acc ? { ...acc } : { name: '', balance: '', currency: 'USD' });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [confirmDelete, ConfirmUI] = useConfirm();
 
   async function save() {
     if (!form.name) { toast.error('Escribe un nombre'); return; }
@@ -29,7 +31,7 @@ function AccountModal({ acc, onClose, onSaved }) {
   }
 
   async function remove() {
-    if (!confirm('¿Eliminar cuenta y sus transacciones?')) return;
+    if (!await confirmDelete({ title: '¿Eliminar cuenta?', message: 'Se eliminarán también todas sus transacciones.' })) return;
     try { await api.delete(`/api/accounts/${acc.id}`); toast.success('Cuenta eliminada'); onSaved(); }
     catch (e) { toast.error('No se pudo eliminar'); }
   }
@@ -47,6 +49,7 @@ function AccountModal({ acc, onClose, onSaved }) {
         <div className="field"><label>Saldo</label><input type="number" step="0.01" value={form.balance} onChange={set('balance')} placeholder="0.00" /></div>
         <div className="field"><label>Moneda</label><select value={form.currency} onChange={set('currency')}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></div>
       </div>
+      {ConfirmUI}
     </Modal>
   );
 }
@@ -71,7 +74,7 @@ export default function Accounts() {
           <EmptyState title="Sin cuentas" sub="Crea tu primera cuenta" action={<button className="btn btn-primary" onClick={() => setOpen(true)}><PlusIcon /> Nueva cuenta</button>} />
         ) : (
           <>
-            <div className="stats" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+            <div className="stats g3">
               <div className="stat"><div className="stat-lbl">Balance total</div><div className="stat-val pos num">{money(total, currency)}</div><div className="stat-delta">{accounts.length} cuentas</div></div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 12 }}>

@@ -49,6 +49,9 @@ class Transaction(db.Model):
         data = self.to_dict()
         data['account_name'] = self.account.name if self.account else None
         data['category_name'] = self.category.name if self.category else None
+        data['category_color'] = self.category.color if self.category else None
+        data['category_icon'] = self.category.icon if self.category else None
+        data['category_icon_type'] = self.category.icon_type if self.category else None
         data['loan_name'] = self.loan.name if self.loan else None
         return data
 

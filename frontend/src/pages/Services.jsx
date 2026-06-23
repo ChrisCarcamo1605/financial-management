@@ -3,12 +3,14 @@ import toast from 'react-hot-toast';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import Modal from '../components/Modal';
 import { Loading, ErrorState, EmptyState } from '../components/State';
+import Icon from '../components/Icon';
+import IconPicker from '../components/IconPicker';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
 import { money } from '../lib/format';
+import useConfirm from '../hooks/useConfirm';
 
-const ICONS = ['⚡', '💧', '🌐', '📱', '🔥', '🎬', '🏠', '📺'];
 const SURCHARGE_TYPES = [
   { v: 'exceso', l: 'Exceso de uso' },
   { v: 'mora', l: 'Mora / pago tardío' },
@@ -76,9 +78,12 @@ function SurchargeModal({ svc, currency, onClose, onChanged }) {
 }
 
 function ServiceModal({ svc, categories, accounts, onClose, onSaved }) {
-  const [form, setForm] = useState(svc ? { ...svc } : { name: '', amount: '', day_of_month: 1, category_id: '', account_id: '', active: true, icon: '⚡', icon_type: 'emoji' });
+  const [form, setForm] = useState(svc
+    ? { ...svc, icon: svc.icon || 'zap' }
+    : { name: '', amount: '', day_of_month: 1, category_id: '', account_id: '', active: true, icon: 'zap' });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [confirmDelete, ConfirmUI] = useConfirm();
 
   async function save() {
     if (!form.name || !form.amount) { toast.error('Escribe nombre y monto'); return; }
@@ -87,7 +92,7 @@ function ServiceModal({ svc, categories, accounts, onClose, onSaved }) {
       name: form.name, amount: Number(form.amount), day_of_month: Number(form.day_of_month) || 1,
       category_id: form.category_id ? Number(form.category_id) : null,
       account_id: form.account_id ? Number(form.account_id) : null,
-      active: !!form.active, icon: form.icon, icon_type: form.icon_type || 'emoji',
+      active: !!form.active, icon: form.icon, iconType: 'registry',
     };
     try {
       if (svc?.id) await api.put(`/api/recurring-services/${svc.id}`, payload);
@@ -99,7 +104,7 @@ function ServiceModal({ svc, categories, accounts, onClose, onSaved }) {
   }
 
   async function remove() {
-    if (!confirm('¿Eliminar servicio?')) return;
+    if (!await confirmDelete({ title: '¿Eliminar servicio?' })) return;
     try { await api.delete(`/api/recurring-services/${svc.id}`); toast.success('Eliminado'); onSaved(); }
     catch { toast.error('No se pudo eliminar'); }
   }
@@ -121,11 +126,94 @@ function ServiceModal({ svc, categories, accounts, onClose, onSaved }) {
         <div className="field"><label>Categoría</label><select value={form.category_id || ''} onChange={set('category_id')}><option value="">—</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="field"><label>Cuenta</label><select value={form.account_id || ''} onChange={set('account_id')}><option value="">—</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
       </div>
-      <div className="field"><label>Icono</label><div className="icon-grid">{ICONS.map((ic) => <span key={ic} className={`ic-opt${form.icon === ic ? ' sel' : ''}`} onClick={() => setForm((f) => ({ ...f, icon: ic, icon_type: 'emoji' }))}>{ic}</span>)}</div></div>
+      <div className="field"><label>Icono</label><IconPicker value={form.icon} onChange={(key) => setForm((f) => ({ ...f, icon: key }))} /></div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, textTransform: 'none', letterSpacing: 0, fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
         <input type="checkbox" style={{ width: 'auto' }} checked={!!form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} /> Activo
       </label>
+      {ConfirmUI}
     </Modal>
+  );
+}
+
+function curPeriodLabel() {
+  const d = new Date();
+  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+function curPeriodParam() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Per-row generate button with its own state
+function GenerateBtn({ svc, currency, onGenerated }) {
+  const [status, setStatus] = useState('idle'); // idle | busy | done | error | exists
+  const [result, setResult] = useState(null);
+
+  async function generate(e) {
+    e.stopPropagation();
+    setStatus('busy');
+    try {
+      const { data, status: httpStatus } = await api.post(
+        `/api/recurring-services/${svc.id}/generate`,
+        { month: curPeriodParam() },
+        { validateStatus: (s) => s < 500 }
+      );
+      if (httpStatus === 201) {
+        setStatus('done');
+        setResult(data);
+        toast.success(`Transacción creada · ${money(data.total_amount, currency)}`);
+        onGenerated?.();
+      } else if (httpStatus === 200 && data.status === 'already_generated') {
+        setStatus('exists');
+      } else {
+        setStatus('error');
+        toast.error(data?.reason || data?.error || 'No se pudo generar');
+      }
+    } catch {
+      setStatus('error');
+      toast.error('Error al generar');
+    }
+  }
+
+  if (status === 'exists') {
+    return (
+      <span className="chip" style={{ color: 'var(--t3)', fontSize: 11.5 }}>
+        <span className="dot" style={{ background: 'var(--t3)' }} />Ya generado
+      </span>
+    );
+  }
+  if (status === 'done') {
+    return (
+      <span className="chip" style={{ color: 'var(--accent)', fontSize: 11.5 }}>
+        <span className="dot" style={{ background: 'var(--accent)' }} />
+        {money(result?.total_amount, currency)}
+      </span>
+    );
+  }
+  if (!svc.category_name || !svc.account_name) {
+    return (
+      <span title="Asigna categoría y cuenta primero" className="mute" style={{ fontSize: 11.5, cursor: 'default' }}>
+        Sin config
+      </span>
+    );
+  }
+  return (
+    <button
+      className="btn btn-soft"
+      style={{ padding: '4px 11px', fontSize: 12 }}
+      disabled={status === 'busy'}
+      onClick={generate}
+    >
+      {status === 'busy' ? (
+        <span className="spinner" style={{ width: 11, height: 11, borderWidth: 2 }} />
+      ) : (
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+          <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      )}
+      Generar
+    </button>
   );
 }
 
@@ -140,40 +228,90 @@ export default function Services() {
   const services = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
   const categories = useMemo(() => (Array.isArray(categoriesQ.data) ? categoriesQ.data : []), [categoriesQ.data]);
   const accounts = useMemo(() => (Array.isArray(accountsQ.data) ? accountsQ.data : []), [accountsQ.data]);
-  const total = services.filter((s) => s.active).reduce((a, s) => a + Number(s.amount || 0), 0);
+  const totalBase = services.filter((s) => s.active).reduce((a, s) => a + Number(s.amount || 0), 0);
 
   function onSaved() { setOpen(false); setEditing(null); q.refetch(); }
-  async function generate() {
-    try { const { data } = await api.post('/api/recurring-services/generate', {}); toast.success(`${(data.created || []).length} cargos generados`); }
-    catch (e) { toast.error(e?.response?.data?.message || 'No se pudo generar'); }
-  }
 
   return (
     <>
       <PageHeader title="Servicios recurrentes">
-        <button className="btn btn-ghost" onClick={generate}>Generar mes</button>
-        <button className="btn btn-primary" onClick={() => { setEditing(null); setOpen(true); }}><PlusIcon /> Nuevo servicio</button>
+        <button className="btn btn-primary" onClick={() => { setEditing(null); setOpen(true); }}>
+          <PlusIcon /> Nuevo servicio
+        </button>
       </PageHeader>
       <div className="content">
         {q.loading ? <Loading /> : q.error ? <ErrorState error={q.error} onRetry={q.refetch} /> : services.length === 0 ? (
-          <EmptyState title="Sin servicios" sub="Registra tus servicios recurrentes (luz, agua, internet…)" action={<button className="btn btn-primary" onClick={() => setOpen(true)}><PlusIcon /> Nuevo servicio</button>} />
+          <EmptyState
+            title="Sin servicios"
+            sub="Registra tus servicios recurrentes (luz, agua, internet…)"
+            action={<button className="btn btn-primary" onClick={() => setOpen(true)}><PlusIcon /> Nuevo servicio</button>}
+          />
         ) : (
           <>
-            <div className="stats" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-              <div className="stat"><div className="stat-lbl">Total mensual</div><div className="stat-val neg num">{money(total, currency)}</div><div className="stat-delta">{services.filter((s) => s.active).length} activos</div></div>
+            <div className="stats g3" style={{ marginBottom: 14 }}>
+              <div className="stat">
+                <div className="stat-lbl">Total base mensual</div>
+                <div className="stat-val neg num">{money(totalBase, currency)}</div>
+                <div className="stat-delta">{services.filter((s) => s.active).length} activos</div>
+              </div>
             </div>
-            <div className="tbl-wrap">
+
+            <div className="tbl-wrap services-table">
+              <div className="panel-head">
+                <span className="panel-title">Servicios · {curPeriodLabel()}</span>
+                <span className="mute" style={{ fontSize: 11.5 }}>
+                  Monto = base + recargos del mes
+                </span>
+              </div>
               <table>
-                <thead><tr><th>Servicio</th><th>Categoría</th><th>Día</th><th>Estado</th><th>Recargos</th><th style={{ textAlign: 'right' }}>Monto base</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Servicio</th>
+                    <th>Categoría</th>
+                    <th>Cuenta</th>
+                    <th>Día</th>
+                    <th>Estado</th>
+                    <th>Recargos</th>
+                    <th style={{ textAlign: 'right' }}>Base</th>
+                    <th>Generar transacción</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {services.map((s) => (
-                    <tr key={s.id} style={{ cursor: 'pointer' }} onClick={() => { setEditing(s); setOpen(true); }}>
-                      <td><span style={{ display: 'flex', alignItems: 'center', gap: 9 }}><span style={{ fontSize: 16 }}>{s.icon || '•'}</span><span style={{ fontWeight: 500 }}>{s.name}</span></span></td>
-                      <td className="mute">{s.category_name || '—'}</td>
+                    <tr key={s.id}>
+                      <td
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => { setEditing(s); setOpen(true); }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                          <Icon icon={s.icon} iconType={s.iconType} size={16} />
+                          <span style={{ fontWeight: 500 }}>{s.name}</span>
+                        </span>
+                      </td>
+                      <td className="mute">{s.category_name || <span style={{ color: 'var(--red)', fontSize: 11.5 }}>Sin categoría</span>}</td>
+                      <td className="mute">{s.account_name || <span style={{ color: 'var(--red)', fontSize: 11.5 }}>Sin cuenta</span>}</td>
                       <td className="mute num">{s.day_of_month}</td>
-                      <td>{s.active ? <span className="chip" style={{ color: 'var(--accent)' }}><span className="dot" style={{ background: 'var(--accent)' }} />Activo</span> : <span className="chip">Pausado</span>}</td>
-                      <td><button className="btn btn-soft" style={{ padding: '4px 10px' }} onClick={(e) => { e.stopPropagation(); setSurcharge(s); }}>⚡ Recargos</button></td>
+                      <td>
+                        {s.active
+                          ? <span className="chip" style={{ color: 'var(--accent)' }}><span className="dot" style={{ background: 'var(--accent)' }} />Activo</span>
+                          : <span className="chip">Pausado</span>}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-soft"
+                          style={{ padding: '4px 10px', fontSize: 11.5 }}
+                          onClick={(e) => { e.stopPropagation(); setSurcharge(s); }}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                            <path d="M10 1L4 9h5l-2 6 7-8H9L10 1z" fill="currentColor" opacity=".8" />
+                          </svg>
+                          Recargos
+                        </button>
+                      </td>
                       <td className="amt neg">{money(s.amount, currency)}</td>
+                      <td>
+                        <GenerateBtn svc={s} currency={currency} onGenerated={() => {}} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

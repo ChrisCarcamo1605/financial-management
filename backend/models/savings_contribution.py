@@ -14,8 +14,11 @@ class SavingsContribution(db.Model):
     user_id = db.Column(db.String(36), nullable=False, index=True)
     amount = db.Column(db.Numeric(15, 2), nullable=False)
     date = db.Column(db.Date, nullable=False, default=date.today, index=True)
-    # Origen del aporte: 'manual', 'quincena', 'extra'...
+    # Origen del aporte: 'manual', 'auto', 'extra'...
     source = db.Column(db.String(50), nullable=True)
+    # Para aportes automáticos: periodo único "YYYY-MM-Q1" o "YYYY-MM-Q2"
+    # Evita generar el mismo aporte dos veces en la misma quincena.
+    quincena_period = db.Column(db.String(12), nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     def to_dict(self):
@@ -27,6 +30,7 @@ class SavingsContribution(db.Model):
             'amount': float(self.amount),
             'date': self.date.isoformat() if self.date else None,
             'source': self.source,
+            'quincena_period': self.quincena_period,
             'created_at': self.created_at.isoformat(),
         }
 

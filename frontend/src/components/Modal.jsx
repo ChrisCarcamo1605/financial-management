@@ -1,10 +1,15 @@
 import { useEffect } from 'react';
 
 export default function Modal({ title, onClose, children, footer, maxWidth }) {
+  // lock body scroll when modal open
   useEffect(() => {
+    document.body.style.overflow = 'hidden';
     const onKey = (e) => e.key === 'Escape' && onClose?.();
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', onKey);
+    };
   }, [onClose]);
 
   return (
