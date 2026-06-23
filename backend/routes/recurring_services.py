@@ -13,6 +13,7 @@ from sqlalchemy import extract
 
 from models import db
 from models.recurring_service import RecurringService
+from models.service_surcharge import ServiceSurcharge
 from models.transaction import Transaction
 from models.account import Account
 from models.category import Category
@@ -26,6 +27,21 @@ VALID_ICON_TYPES = ('bootstrap', 'svg')
 def _clamp_day(year, month, day):
     last = calendar.monthrange(year, month)[1]
     return date(year, month, min(max(int(day or 1), 1), last))
+
+
+def _surcharge_total(service_id, period):
+    """Suma de recargos de un servicio que aplican a un periodo 'YYYY-MM'.
+
+    Incluye los recargos sin periodo (period NULL = aplican siempre).
+    """
+    total = Decimal('0')
+    rows = ServiceSurcharge.query.filter(
+        ServiceSurcharge.recurring_service_id == service_id,
+        db.or_(ServiceSurcharge.period == period, ServiceSurcharge.period.is_(None)),
+    ).all()
+    for r in rows:
+        total += r.amount
+    return total
 
 
 @recurring_services_bp.route('/api/recurring-services', methods=['GET'])
@@ -207,22 +223,101 @@ def generate_recurring_transactions(user_id, user_email):
                 skipped.append({'id': s.id, 'name': s.name, 'reason': 'account not found'})
                 continue
 
+            # El monto del mes = base + recargos del periodo (mora, exceso, IVA...).
+            period = f'{year}-{month:02d}'
+            total_amount = s.amount + _surcharge_total(s.id, period)
+
             tx = Transaction(
                 user_id=user_id,
                 account_id=s.account_id,
                 category_id=s.category_id,
-                amount=s.amount,
+                amount=total_amount,
                 type='expense',
                 description=s.name,
                 date=_clamp_day(year, month, s.day_of_month),
                 recurring_service_id=s.id,
             )
-            account.balance -= s.amount
+            account.balance -= total_amount
             db.session.add(tx)
-            created.append({'id': s.id, 'name': s.name, 'amount': float(s.amount)})
+            created.append({'id': s.id, 'name': s.name, 'amount': float(total_amount)})
 
         db.session.commit()
         return jsonify({'created': created, 'skipped': skipped}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Error generating transactions: {str(e)}'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Recargos (surcharges): cargos extra de un servicio en un mes dado.
+# ---------------------------------------------------------------------------
+
+@recurring_services_bp.route('/api/recurring-services/<int:service_id>/surcharges', methods=['GET'])
+@token_required
+def list_surcharges(user_id, user_email, service_id):
+    """Listar recargos de un servicio. Filtro opcional ?month=YYYY-MM
+    (incluye los recargos sin periodo, que aplican siempre)."""
+    service = RecurringService.query.filter_by(id=service_id, user_id=user_id).first()
+    if not service:
+        return jsonify({'error': 'Recurring service not found'}), 404
+    try:
+        query = ServiceSurcharge.query.filter_by(recurring_service_id=service_id, user_id=user_id)
+        month = request.args.get('month')
+        if month:
+            query = query.filter(
+                db.or_(ServiceSurcharge.period == month, ServiceSurcharge.period.is_(None))
+            )
+        rows = query.order_by(ServiceSurcharge.created_at).all()
+        base = float(service.amount)
+        extra = sum(float(r.amount) for r in rows)
+        return jsonify({
+            'data': [r.to_dict() for r in rows],
+            'base_amount': base,
+            'surcharge_total': extra,
+            'total': base + extra,
+        }), 200
+    except Exception as e:
+        return jsonify({'error': f'Error fetching surcharges: {str(e)}'}), 500
+
+
+@recurring_services_bp.route('/api/recurring-services/<int:service_id>/surcharges', methods=['POST'])
+@token_required
+def add_surcharge(user_id, user_email, service_id):
+    """Agregar recargo. Body: { type, amount, note?, period? ('YYYY-MM') }."""
+    service = RecurringService.query.filter_by(id=service_id, user_id=user_id).first()
+    if not service:
+        return jsonify({'error': 'Recurring service not found'}), 404
+    data = request.get_json() or {}
+    if data.get('amount') is None:
+        return jsonify({'error': 'amount is required'}), 400
+    try:
+        surcharge = ServiceSurcharge(
+            recurring_service_id=service_id,
+            user_id=user_id,
+            type=data.get('type', 'otro'),
+            amount=Decimal(str(data['amount'])),
+            note=data.get('note'),
+            period=data.get('period') or None,
+        )
+        db.session.add(surcharge)
+        db.session.commit()
+        return jsonify(surcharge.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error adding surcharge: {str(e)}'}), 500
+
+
+@recurring_services_bp.route('/api/recurring-services/surcharges/<int:surcharge_id>', methods=['DELETE'])
+@token_required
+def delete_surcharge(user_id, user_email, surcharge_id):
+    """Eliminar un recargo."""
+    try:
+        surcharge = ServiceSurcharge.query.filter_by(id=surcharge_id, user_id=user_id).first()
+        if not surcharge:
+            return jsonify({'error': 'Surcharge not found'}), 404
+        db.session.delete(surcharge)
+        db.session.commit()
+        return jsonify({'message': 'Recargo eliminado'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error deleting surcharge: {str(e)}'}), 500

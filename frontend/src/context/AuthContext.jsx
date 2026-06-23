@@ -1,73 +1,68 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import authStore from '../services/authStore';
-import { apiLogin, apiRegister, apiRefresh, apiLogout } from '../services/auth';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import api, { setToken, getToken } from '../lib/api';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
-};
-
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount: attempt to restore session from the httpOnly refresh cookie.
-  // No Supabase, no localStorage — the cookie is the source of truth.
+  // bootstrap: if we have a token, fetch the current user
   useEffect(() => {
-    apiRefresh()
-      .then(({ access_token, user: userData }) => {
-        authStore.accessToken = access_token;
-        setUser(userData);
-      })
-      .catch(() => {
-        // No valid cookie → not logged in. Silently do nothing.
-        authStore.accessToken = null;
-        setUser(null);
-      })
-      .finally(() => setLoading(false));
-
-    // The 401 interceptor in api.js dispatches this when all refresh retries fail.
-    const handleForceLogout = () => {
-      authStore.accessToken = null;
-      setUser(null);
+    let active = true;
+    async function boot() {
+      if (!getToken()) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const { data } = await api.get('/api/auth/me');
+        if (active) setUser(data);
+      } catch {
+        setToken(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    boot();
+    return () => {
+      active = false;
     };
-    window.addEventListener('auth:logout', handleForceLogout);
-    return () => window.removeEventListener('auth:logout', handleForceLogout);
   }, []);
 
-  const login = async (email, password) => {
-    const { access_token, user: userData } = await apiLogin(email, password);
-    authStore.accessToken = access_token;
-    setUser(userData);
-  };
+  const login = useCallback(async (email, password) => {
+    const { data } = await api.post('/api/auth/login', { email, password });
+    setToken(data.access_token);
+    setUser(data.user);
+    return data.user;
+  }, []);
 
-  const register = async (email, password) => {
-    const { access_token, user: userData } = await apiRegister(email, password);
-    authStore.accessToken = access_token;
-    setUser(userData);
-  };
+  const register = useCallback(async (email, password) => {
+    const { data } = await api.post('/api/auth/register', { email, password });
+    setToken(data.access_token);
+    setUser(data.user);
+    return data.user;
+  }, []);
 
-  const logout = async () => {
-    await apiLogout().catch(() => {}); // best-effort — always clear local state
-    authStore.accessToken = null;
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/api/auth/logout', {});
+    } catch {
+      /* ignore */
+    }
+    setToken(null);
     setUser(null);
-  };
+  }, []);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        register,
-        logout,
-        isAuthenticated: !!user,
-      }}
-    >
-      {!loading && children}
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+      {children}
     </AuthContext.Provider>
   );
-};
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}

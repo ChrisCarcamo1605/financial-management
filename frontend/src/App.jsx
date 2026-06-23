@@ -1,57 +1,56 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import Sidebar from './components/Sidebar';
+import Layout from './components/Layout';
+
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Accounts from './pages/Accounts';
-import Categories from './pages/Categories';
 import Budgets from './pages/Budgets';
-import Reports from './pages/Reports';
-import Analytics from './pages/Analytics';
-import FuentesIngreso from './pages/FuentesIngreso';
-import Prestamos from './pages/Prestamos';
+import Savings from './pages/Savings';
 import Quincenas from './pages/Quincenas';
-import Servicios from './pages/Servicios';
+import Loans from './pages/Loans';
+import IncomeSources from './pages/IncomeSources';
+import Services from './pages/Services';
+import Analytics from './pages/Analytics';
+import Settings from './pages/Settings';
 
-function App() {
-  return (
-    <Router>
-      <ThemeProvider>
-        <AuthProvider>
-          <div className="app-shell">
-            <Sidebar />
-            <main className="app-main">
-              <Routes>
-                {/* Public */}
-                <Route path="/login"    element={<Login />} />
-                <Route path="/register" element={<Register />} />
-
-                {/* Protected */}
-                <Route path="/dashboard"      element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/transactions"   element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
-                <Route path="/accounts"       element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
-                <Route path="/categories"     element={<ProtectedRoute><Categories /></ProtectedRoute>} />
-                <Route path="/budgets"        element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
-                <Route path="/reports"        element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-                <Route path="/analytics"      element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-                <Route path="/fuentes-ingreso" element={<ProtectedRoute><FuentesIngreso /></ProtectedRoute>} />
-                <Route path="/prestamos"      element={<ProtectedRoute><Prestamos /></ProtectedRoute>} />
-                <Route path="/servicios"      element={<ProtectedRoute><Servicios /></ProtectedRoute>} />
-                <Route path="/quincenas"      element={<ProtectedRoute><Quincenas /></ProtectedRoute>} />
-
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </main>
-          </div>
-        </AuthProvider>
-      </ThemeProvider>
-    </Router>
-  );
+function PublicOnly({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="center-screen"><div className="spinner" /></div>;
+  if (user) return <Navigate to="/" replace />;
+  return children;
 }
 
-export default App;
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+      <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/accounts" element={<Accounts />} />
+        <Route path="/budgets" element={<Budgets />} />
+        <Route path="/savings" element={<Savings />} />
+        <Route path="/quincenas" element={<Quincenas />} />
+        <Route path="/loans" element={<Loans />} />
+        <Route path="/income-sources" element={<IncomeSources />} />
+        <Route path="/services" element={<Services />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/settings" element={<Settings />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}

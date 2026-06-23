@@ -1,236 +1,166 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Form, Badge } from 'react-bootstrap';
-import { getTransactions, deleteTransaction } from '../services/api';
-import TransactionForm from '../components/TransactionForm';
-import TransactionList from '../components/TransactionList';
-import { PageHeader, LoadingSkeleton, EmptyState, Pagination } from '../components/ui';
+import { useState, useMemo } from 'react';
+import toast from 'react-hot-toast';
+import PageHeader, { PlusIcon } from '../components/PageHeader';
+import Modal from '../components/Modal';
+import { Loading, ErrorState, EmptyState } from '../components/State';
+import { useFetch } from '../hooks/useFetch';
+import { useTheme } from '../context/ThemeContext';
+import api from '../lib/api';
+import { money, signedMoney, fmtDate, isoDate } from '../lib/format';
 
-const Transactions = () => {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState(null);
-  const [filters, setFilters] = useState({
-    type: '',
-    start_date: '',
-    end_date: '',
-  });
-  
-  // Pagination state (using limit/offset pattern)
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const limit = 50;
+const empty = { type: 'expense', amount: '', description: '', date: isoDate(), account_id: '', category_id: '' };
 
-  useEffect(() => {
-    // Reset to page 1 when filters change
-    setCurrentPage(1);
-  }, [filters]);
+function TxModal({ tx, accounts, categories, onClose, onSaved }) {
+  const [form, setForm] = useState(tx ? { ...tx } : empty);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const cats = categories.filter((c) => c.type === form.type);
 
-  useEffect(() => {
-    fetchTransactions(currentPage);
-  }, [currentPage, filters]);
-
-  const fetchTransactions = async (page = 1) => {
-    setLoading(true);
-    const offset = (page - 1) * limit;
+  async function save() {
+    if (!form.account_id || !form.category_id || !form.amount) {
+      toast.error('Completa cuenta, categoría y monto');
+      return;
+    }
+    setBusy(true);
+    const payload = {
+      type: form.type,
+      amount: Number(form.amount),
+      description: form.description,
+      date: form.date,
+      account_id: Number(form.account_id),
+      category_id: Number(form.category_id),
+    };
     try {
-      const params = {
-        ...filters,
-        limit,
-        offset,
-      };
-      const response = await getTransactions(params);
-      setTransactions(response.data.data);
-      setTotalItems(response.data.total);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
+      if (tx?.id) await api.put(`/api/transactions/${tx.id}`, payload);
+      else await api.post('/api/transactions', payload);
+      toast.success(tx ? 'Transacción actualizada' : 'Transacción creada');
+      onSaved();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Error al guardar');
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
-  };
-
-  const handleEdit = (transaction) => {
-    setEditingTransaction(transaction);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm('¿Estás seguro de eliminar esta transacción?')) {
-      try {
-        await deleteTransaction(id);
-        fetchTransactions(currentPage);
-      } catch (error) {
-        console.error('Error deleting transaction:', error);
-      }
-    }
-  };
-
-  const handleFormClose = () => {
-    setShowForm(false);
-    setEditingTransaction(null);
-  };
-
-  const handleFormSuccess = () => {
-    fetchTransactions();
-  };
-
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const quickFilters = [
-    { label: 'Todos', value: { type: '', start_date: '', end_date: '' } },
-    { label: 'Este mes', value: { type: '', start_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0], end_date: new Date().toISOString().split('T')[0] } },
-    { label: 'Últimos 7 días', value: { type: '', start_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end_date: new Date().toISOString().split('T')[0] } },
-    { label: 'Ingresos', value: { type: 'income', start_date: '', end_date: '' } },
-    { label: 'Gastos', value: { type: 'expense', start_date: '', end_date: '' } },
-  ];
+  }
 
   return (
-    <Container fluid className="py-4" style={{ maxWidth: '1400px' }}>
-      <PageHeader
-        title="Transacciones"
-        subtitle="Gestiona tus ingresos y gastos"
-        icon="arrow-left-right"
-        actions={
-          <Button variant="primary" onClick={() => setShowForm(true)}>
-            <i className="bi bi-plus-circle me-2"></i>
-            Nueva Transacción
-          </Button>
-        }
-      />
-
-      {/* Quick Filters */}
-      <Card className="mb-4 animate-fade-in-up">
-        <Card.Body>
-          <div className="d-flex flex-wrap gap-2 align-items-center">
-            <span className="text-muted fw-500 me-2">
-              <i className="bi bi-funnel me-1"></i> Filtros rápidos:
-            </span>
-            {quickFilters.map((filter, idx) => (
-              <Button
-                key={idx}
-                variant={
-                  JSON.stringify(filters) === JSON.stringify(filter.value)
-                    ? 'primary'
-                    : 'light'
-                }
-                size="sm"
-                onClick={() => setFilters(filter.value)}
-                style={{
-                  borderRadius: 'var(--radius-full)',
-                  fontWeight: 500,
-                  fontSize: '0.8125rem',
-                  padding: '0.375rem 0.875rem',
-                  border: 'none',
-                }}
-              >
-                {filter.label}
-              </Button>
-            ))}
-          </div>
-
-          <Form className="mt-3">
-            <Row className="g-3">
-              <Col md={3}>
-                <Form.Group>
-                  <Form.Label className="small text-muted">Tipo</Form.Label>
-                  <Form.Select
-                    name="type"
-                    value={filters.type}
-                    onChange={handleFilterChange}
-                    size="sm"
-                  >
-                    <option value="">Todos</option>
-                    <option value="income">Ingresos</option>
-                    <option value="expense">Gastos</option>
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-              <Col md={3}>
-                <Form.Group>
-                  <Form.Label className="small text-muted">Fecha Inicio</Form.Label>
-                  <Form.Control
-                    type="date"
-                    name="start_date"
-                    value={filters.start_date}
-                    onChange={handleFilterChange}
-                    size="sm"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={3}>
-                <Form.Group>
-                  <Form.Label className="small text-muted">Fecha Fin</Form.Label>
-                  <Form.Control
-                    type="date"
-                    name="end_date"
-                    value={filters.end_date}
-                    onChange={handleFilterChange}
-                    size="sm"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={3} className="d-flex align-items-end">
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={() => setFilters({ type: '', start_date: '', end_date: '' })}
-                  className="w-100"
-                  style={{ borderRadius: 'var(--radius-lg)' }}
-                >
-                  <i className="bi bi-x-circle me-1"></i>
-                  Limpiar
-                </Button>
-              </Col>
-            </Row>
-          </Form>
-        </Card.Body>
-      </Card>
-
-      {/* Transaction List */}
-      <Card className="animate-fade-in-up">
-        {loading ? (
-          <Card.Body>
-            <LoadingSkeleton type="table" count={5} />
-          </Card.Body>
-        ) : transactions.length > 0 ? (
-          <TransactionList
-            transactions={transactions}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ) : (
-          <EmptyState
-            icon="arrow-left-right"
-            title="No hay transacciones"
-            description="Agrega tu primera transacción para comenzar a registrar tus finanzas"
-            actionLabel="Nueva Transacción"
-            onAction={() => setShowForm(true)}
-          />
-        )}
-      </Card>
-
-      {/* Pagination */}
-      {!loading && transactions.length > 0 && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={Math.ceil(totalItems / limit)}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          perPage={limit}
-        />
-      )}
-
-      <TransactionForm
-        show={showForm}
-        handleClose={handleFormClose}
-        transaction={editingTransaction}
-        onSuccess={handleFormSuccess}
-      />
-    </Container>
+    <Modal
+      title={tx ? 'Editar transacción' : 'Nueva transacción'}
+      onClose={onClose}
+      footer={
+        <>
+          {tx?.id && (
+            <button className="btn btn-danger push" onClick={async () => {
+              if (!confirm('¿Eliminar transacción?')) return;
+              try { await api.delete(`/api/transactions/${tx.id}`); toast.success('Eliminada'); onSaved(); }
+              catch (e) { toast.error('No se pudo eliminar'); }
+            }}>Eliminar</button>
+          )}
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button>
+        </>
+      }
+    >
+      <div className="field">
+        <label>Tipo</label>
+        <div className="seg-toggle">
+          <button className={form.type === 'income' ? 'on-inc' : ''} onClick={() => setForm((f) => ({ ...f, type: 'income', category_id: '' }))}>Ingreso</button>
+          <button className={form.type === 'expense' ? 'on-exp' : ''} onClick={() => setForm((f) => ({ ...f, type: 'expense', category_id: '' }))}>Gasto</button>
+        </div>
+      </div>
+      <div className="field-row">
+        <div className="field"><label>Monto</label><input type="number" step="0.01" value={form.amount} onChange={set('amount')} placeholder="0.00" /></div>
+        <div className="field"><label>Fecha</label><input type="date" value={form.date} onChange={set('date')} /></div>
+      </div>
+      <div className="field"><label>Descripción</label><input value={form.description} onChange={set('description')} placeholder="Opcional" /></div>
+      <div className="field-row">
+        <div className="field">
+          <label>Cuenta</label>
+          <select value={form.account_id} onChange={set('account_id')}>
+            <option value="">Selecciona…</option>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>Categoría</label>
+          <select value={form.category_id} onChange={set('category_id')}>
+            <option value="">Selecciona…</option>
+            {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      </div>
+    </Modal>
   );
-};
+}
 
-export default Transactions;
+export default function Transactions() {
+  const { currency } = useTheme();
+  const [filterType, setFilterType] = useState('');
+  const [editing, setEditing] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  const accountsQ = useFetch('/api/accounts', { params: { per_page: 100 }, select: (d) => d.data || d.items || d });
+  const categoriesQ = useFetch('/api/categories', { params: { per_page: 100 }, select: (d) => d.data || d.items || d });
+  const txQ = useFetch('/api/transactions', { params: { limit: 100, ...(filterType && { type: filterType }) }, select: (d) => d.data || d });
+
+  const accounts = useMemo(() => (Array.isArray(accountsQ.data) ? accountsQ.data : []), [accountsQ.data]);
+  const categories = useMemo(() => (Array.isArray(categoriesQ.data) ? categoriesQ.data : []), [categoriesQ.data]);
+  const txs = useMemo(() => (Array.isArray(txQ.data) ? txQ.data : []), [txQ.data]);
+
+  const totals = useMemo(() => {
+    let inc = 0, exp = 0;
+    txs.forEach((t) => (t.type === 'income' ? (inc += Number(t.amount)) : (exp += Number(t.amount))));
+    return { inc, exp };
+  }, [txs]);
+
+  function openNew() { setEditing(null); setOpen(true); }
+  function openEdit(t) { setEditing(t); setOpen(true); }
+  function onSaved() { setOpen(false); setEditing(null); txQ.refetch(); }
+
+  return (
+    <>
+      <PageHeader title="Transacciones">
+        <div className="seg">
+          <button className={!filterType ? 'on' : ''} onClick={() => setFilterType('')}>Todas</button>
+          <button className={filterType === 'income' ? 'on' : ''} onClick={() => setFilterType('income')}>Ingresos</button>
+          <button className={filterType === 'expense' ? 'on' : ''} onClick={() => setFilterType('expense')}>Gastos</button>
+        </div>
+        <button className="btn btn-primary" onClick={openNew}><PlusIcon /> Nueva</button>
+      </PageHeader>
+
+      <div className="content">
+        {!txQ.loading && txs.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, fontSize: 12.5, color: 'var(--t3)', marginBottom: 12, alignItems: 'center' }}>
+            {txs.length} transacciones <span style={{ color: 'var(--b2)' }}>·</span>
+            <span className="pos num" style={{ fontWeight: 600 }}>+{money(totals.inc, currency)}</span> <span style={{ color: 'var(--b2)' }}>·</span>
+            <span className="neg num" style={{ fontWeight: 600 }}>−{money(totals.exp, currency)}</span>
+          </div>
+        )}
+
+        {txQ.loading ? <Loading /> : txQ.error ? <ErrorState error={txQ.error} onRetry={txQ.refetch} /> : txs.length === 0 ? (
+          <EmptyState title="Sin transacciones" sub="Registra tu primera transacción" action={<button className="btn btn-primary" onClick={openNew}><PlusIcon /> Nueva transacción</button>} />
+        ) : (
+          <div className="tbl-wrap">
+            <table>
+              <thead>
+                <tr><th>Descripción</th><th>Categoría</th><th>Cuenta</th><th>Fecha</th><th style={{ textAlign: 'right' }}>Monto</th></tr>
+              </thead>
+              <tbody>
+                {txs.map((t) => (
+                  <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(t)}>
+                    <td>{t.description || '—'}</td>
+                    <td><span className="chip">{t.category_name}</span></td>
+                    <td className="mute">{t.account_name}</td>
+                    <td className="mute">{fmtDate(t.date)}</td>
+                    <td className={`amt ${t.type === 'income' ? 'pos' : 'neg'}`}>{signedMoney(t.amount, t.type, currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {open && <TxModal tx={editing} accounts={accounts} categories={categories} onClose={() => setOpen(false)} onSaved={onSaved} />}
+    </>
+  );
+}

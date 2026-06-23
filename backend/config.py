@@ -1,7 +1,20 @@
 import os
+from urllib.parse import urlparse, urlunparse, quote
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _safe_db_url(raw_url: str) -> str:
+    """Re-encode the password in a database URL so special chars don't break the parser."""
+    parsed = urlparse(raw_url)
+    if parsed.password and any(c in parsed.password for c in '@#%?&=+'):
+        safe_password = quote(parsed.password, safe='')
+        netloc = f"{parsed.username}:{safe_password}@{parsed.hostname}"
+        if parsed.port:
+            netloc += f":{parsed.port}"
+        raw_url = urlunparse(parsed._replace(netloc=netloc))
+    return raw_url
 
 
 class Config:
@@ -10,12 +23,13 @@ class Config:
     if _database_url:
         if _database_url.startswith('postgresql://'):
             _database_url = _database_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
-        SQLALCHEMY_DATABASE_URI = _database_url
+        SQLALCHEMY_DATABASE_URI = _safe_db_url(_database_url)
     else:
         # Fallback: direct Supabase PostgreSQL connection (DB only, not Auth)
         _host = os.getenv('SUPABASE_URL', '').replace('https://', '').replace('.supabase.co', '')
+        _password = quote(os.getenv('SUPABASE_DB_PASSWORD', ''), safe='')
         SQLALCHEMY_DATABASE_URI = (
-            f"postgresql+psycopg2://postgres:{os.getenv('SUPABASE_DB_PASSWORD')}"
+            f"postgresql+psycopg2://postgres:{_password}"
             f"@db.{_host}.supabase.co:5432/postgres"
         )
 

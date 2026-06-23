@@ -349,3 +349,80 @@ CREATE INDEX IF NOT EXISTS idx_transactions_loan_id ON transactions(loan_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_recurring_service_id ON transactions(recurring_service_id);
 
 ALTER TABLE recurring_services DISABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- Migration: Preferencias de usuario (tema + color de acento de la app)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    theme VARCHAR(20) NOT NULL DEFAULT 'dark',
+    accent_color VARCHAR(7) NOT NULL DEFAULT '#10b981',
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    date_format VARCHAR(20) NOT NULL DEFAULT 'YYYY-MM-DD',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id);
+
+ALTER TABLE user_preferences DISABLE ROW LEVEL SECURITY;
+
+CREATE TRIGGER update_user_preferences_updated_at
+    BEFORE UPDATE ON user_preferences
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- Migration: Recargos de servicios recurrentes (mora, exceso de uso, IVA...)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS service_surcharges (
+    id SERIAL PRIMARY KEY,
+    recurring_service_id INTEGER NOT NULL REFERENCES recurring_services(id) ON DELETE CASCADE,
+    user_id VARCHAR(36) NOT NULL,
+    type VARCHAR(20) NOT NULL DEFAULT 'otro',
+    amount NUMERIC(15,2) NOT NULL,
+    note TEXT,
+    period VARCHAR(7),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_service_surcharges_service ON service_surcharges(recurring_service_id);
+CREATE INDEX IF NOT EXISTS idx_service_surcharges_user_id ON service_surcharges(user_id);
+CREATE INDEX IF NOT EXISTS idx_service_surcharges_period ON service_surcharges(period);
+ALTER TABLE service_surcharges DISABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- Migration: Metas de ahorro y aportes
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS savings_goals (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    target_amount NUMERIC(15,2) NOT NULL,
+    current_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    per_quincena NUMERIC(15,2) NOT NULL DEFAULT 0,
+    color VARCHAR(7),
+    icon TEXT,
+    icon_type VARCHAR(10) NOT NULL DEFAULT 'emoji',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user_id ON savings_goals(user_id);
+ALTER TABLE savings_goals DISABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS savings_contributions (
+    id SERIAL PRIMARY KEY,
+    savings_goal_id INTEGER NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+    user_id VARCHAR(36) NOT NULL,
+    amount NUMERIC(15,2) NOT NULL,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    source VARCHAR(50),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_savings_contributions_goal ON savings_contributions(savings_goal_id);
+CREATE INDEX IF NOT EXISTS idx_savings_contributions_user_id ON savings_contributions(user_id);
+ALTER TABLE savings_contributions DISABLE ROW LEVEL SECURITY;

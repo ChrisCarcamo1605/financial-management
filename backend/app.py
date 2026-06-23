@@ -12,6 +12,7 @@ from models.income_source import IncomeSource
 from models.loan import Loan
 from models.loan_payment import LoanPayment
 from models.recurring_service import RecurringService
+from models.user_preferences import UserPreferences
 from routes.auth import auth_bp
 from routes.accounts import accounts_bp
 from routes.categories import categories_bp
@@ -22,6 +23,8 @@ from routes.income_sources import income_sources_bp
 from routes.loans import loans_bp
 from routes.quincenas import quincenas_bp
 from routes.recurring_services import recurring_services_bp
+from routes.preferences import preferences_bp
+from routes.savings import savings_bp
 from datetime import datetime, date, timedelta
 from sqlalchemy import func
 
@@ -90,6 +93,8 @@ def create_app():
     app.register_blueprint(loans_bp)
     app.register_blueprint(quincenas_bp)
     app.register_blueprint(recurring_services_bp)
+    app.register_blueprint(preferences_bp)
+    app.register_blueprint(savings_bp)
 
     # ========================
     # Swagger Model Definitions
