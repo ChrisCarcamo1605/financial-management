@@ -210,7 +210,7 @@ def create_app():
                 budgets = Budget.query\
                     .filter(
                         Budget.user_id == user_id,
-                        Budget.end_date >= today
+                        db.or_(Budget.end_date.is_(None), Budget.end_date >= today)
                     )\
                     .all()
                 budgets_status = [budget.to_dict_full() for budget in budgets]
