@@ -47,9 +47,12 @@ CREATE TABLE IF NOT EXISTS budgets (
     user_id UUID NOT NULL,
     category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
     amount DECIMAL(15, 2) NOT NULL,
-    period VARCHAR(20) NOT NULL DEFAULT 'monthly' CHECK (period IN ('monthly', 'weekly')),
+    period VARCHAR(20) NOT NULL DEFAULT 'monthly' CHECK (period IN ('monthly', 'weekly', 'biweekly')),
+    -- Día de anclaje del ciclo (día del mes 1-31, o día ISO de la semana 1-7). Ver migración abajo.
+    start_day INTEGER,
     start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
+    -- Opcional: cuándo el presupuesto deja de renovarse (no el fin del periodo actual).
+    end_date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -452,3 +455,33 @@ CREATE INDEX IF NOT EXISTS idx_loans_account_id  ON loans(account_id);
 -- Vincula cada cuota pagada con su transacción generada automáticamente.
 ALTER TABLE loan_payments ADD COLUMN IF NOT EXISTS transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_loan_payments_transaction_id ON loan_payments(transaction_id);
+
+-- ============================================================================
+-- Migration: presupuestos recurrentes (semanal/quincenal/mensual, reinicio automático)
+-- ============================================================================
+
+-- El periodo ahora admite también 'biweekly'. Se elimina cualquier CHECK
+-- previo sobre la columna (nombre autogenerado, puede variar) y se recrea.
+DO $$
+DECLARE
+    con RECORD;
+BEGIN
+    FOR con IN
+        SELECT pgc.conname
+        FROM pg_constraint pgc
+        JOIN pg_class rel ON rel.oid = pgc.conrelid
+        WHERE rel.relname = 'budgets' AND pgc.contype = 'c'
+          AND pg_get_constraintdef(pgc.oid) LIKE '%period%'
+    LOOP
+        EXECUTE format('ALTER TABLE budgets DROP CONSTRAINT %I', con.conname);
+    END LOOP;
+END $$;
+ALTER TABLE budgets ADD CONSTRAINT budgets_period_check CHECK (period IN ('monthly', 'weekly', 'biweekly'));
+
+-- Día de anclaje del ciclo: día del mes (mensual, 1-31) o día ISO de la
+-- semana (semanal, 1-7). Quincenal la ignora y usa la quincena fija de la app.
+ALTER TABLE budgets ADD COLUMN IF NOT EXISTS start_day INTEGER;
+
+-- end_date pasa a ser opcional: ahora significa "cuándo deja de renovarse
+-- el presupuesto", no el fin del periodo actual (que se calcula al vuelo).
+ALTER TABLE budgets ALTER COLUMN end_date DROP NOT NULL;

@@ -7,34 +7,43 @@ import Icon from '../components/Icon';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
-import { money, isoDate } from '../lib/format';
+import { money, fmtDate } from '../lib/format';
 import useConfirm from '../hooks/useConfirm';
 
-function monthBounds() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { start: isoDate(start), end: isoDate(end) };
-}
+const WEEKDAYS = [
+  { value: 1, label: 'Lunes' }, { value: 2, label: 'Martes' }, { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' }, { value: 5, label: 'Viernes' }, { value: 6, label: 'Sábado' }, { value: 7, label: 'Domingo' },
+];
+const PERIOD_LABELS = { weekly: 'Semanal', biweekly: 'Quincenal', monthly: 'Mensual' };
 
 function BudgetModal({ budget, categories, onClose, onSaved }) {
-  const mb = monthBounds();
-  const [form, setForm] = useState(budget ? { ...budget } : { category_id: '', amount: '', period: 'monthly', start_date: mb.start, end_date: mb.end });
+  const [form, setForm] = useState(budget ? {
+    ...budget,
+    start_day: budget.start_day ?? (budget.period === 'weekly' ? new Date(budget.start_date).getDay() || 7 : new Date(budget.start_date).getDate()),
+    end_date: budget.end_date || '',
+  } : { category_id: '', amount: '', period: 'monthly', start_day: 1, end_date: '' });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const expenseCats = categories.filter((c) => c.type === 'expense');
   const [confirmDelete, ConfirmUI] = useConfirm();
+  const isBiweekly = form.period === 'biweekly';
 
   async function save() {
     if (!form.category_id || !form.amount) { toast.error('Elige categoría y monto'); return; }
     setBusy(true);
-    const payload = { category_id: Number(form.category_id), amount: Number(form.amount), period: form.period, start_date: form.start_date, end_date: form.end_date };
+    const payload = {
+      category_id: Number(form.category_id),
+      amount: Number(form.amount),
+      period: form.period,
+      start_day: isBiweekly ? null : Number(form.start_day),
+      end_date: form.end_date || null,
+    };
     try {
       if (budget?.id) await api.put(`/api/budgets/${budget.id}`, payload);
       else await api.post('/api/budgets', payload);
       toast.success(budget ? 'Presupuesto actualizado' : 'Presupuesto creado');
       onSaved();
-    } catch (e) { toast.error(e?.response?.data?.message || 'Error al guardar'); }
+    } catch (e) { toast.error(e?.response?.data?.error || 'Error al guardar'); }
     finally { setBusy(false); }
   }
 
@@ -61,11 +70,37 @@ function BudgetModal({ budget, categories, onClose, onSaved }) {
       </div>
       <div className="field-row">
         <div className="field"><label>Límite</label><input type="number" step="0.01" value={form.amount} onChange={set('amount')} placeholder="0.00" /></div>
-        <div className="field"><label>Periodo</label><select value={form.period} onChange={set('period')}><option value="monthly">Mensual</option><option value="weekly">Semanal</option></select></div>
+        <div className="field">
+          <label>Periodo</label>
+          <select value={form.period} onChange={set('period')}>
+            <option value="weekly">Semanal</option>
+            <option value="biweekly">Quincenal</option>
+            <option value="monthly">Mensual</option>
+          </select>
+        </div>
       </div>
-      <div className="field-row">
-        <div className="field"><label>Inicio</label><input type="date" value={form.start_date} onChange={set('start_date')} /></div>
-        <div className="field"><label>Fin</label><input type="date" value={form.end_date} onChange={set('end_date')} /></div>
+      {!isBiweekly ? (
+        <div className="field">
+          <label>{form.period === 'weekly' ? 'Día que inicia la semana' : 'Día que inicia el mes'}</label>
+          {form.period === 'weekly' ? (
+            <select value={form.start_day} onChange={set('start_day')}>
+              {WEEKDAYS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+          ) : (
+            <input type="number" min="1" max="31" value={form.start_day} onChange={set('start_day')} />
+          )}
+        </div>
+      ) : (
+        <div className="mute" style={{ fontSize: 11.5, marginTop: -4 }}>
+          Quincenal usa los mismos periodos que el resto de la app: 1–14/15 y 15/16–fin de mes.
+        </div>
+      )}
+      <div className="field">
+        <label>Fecha final (opcional)</label>
+        <input type="date" value={form.end_date} onChange={set('end_date')} />
+        <div className="mute" style={{ fontSize: 11.5, marginTop: 4 }}>
+          Sin fecha final, el presupuesto se reinicia solo cada {PERIOD_LABELS[form.period].toLowerCase()}.
+        </div>
       </div>
       {ConfirmUI}
     </Modal>
@@ -105,7 +140,10 @@ export default function Budgets() {
                       </span>
                       {b.category_name}
                     </span>
-                    <span className="badge">{b.period === 'weekly' ? 'Semanal' : 'Mensual'}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {b.active === false && <span className="chip" style={{ color: 'var(--t3)' }}>Vencido</span>}
+                      <span className="badge">{PERIOD_LABELS[b.period] || b.period}</span>
+                    </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span className="num" style={{ fontSize: 18, fontWeight: 700 }}>{money(b.spent, currency)}</span>
@@ -115,6 +153,11 @@ export default function Budgets() {
                   <div className="mute" style={{ fontSize: 11.5, marginTop: 6 }}>
                     {p >= 100 ? 'Excedido' : `${money(b.remaining ?? b.amount - b.spent, currency)} disponible`} · {Math.round(p)}%
                   </div>
+                  {b.cycle_start && (
+                    <div className="mute" style={{ fontSize: 11, marginTop: 4 }}>
+                      {fmtDate(b.cycle_start, 'd MMM')} – {fmtDate(b.cycle_end, 'd MMM')}
+                    </div>
+                  )}
                 </div>
               );
             })}
