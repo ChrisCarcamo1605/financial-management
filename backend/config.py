@@ -27,8 +27,8 @@ class Config:
 
     # ── JWT / Auth ────────────────────────────────────────────────────────────
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'change-this-secret-in-production')
-    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 900))    # 15 min
-    JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 604800))  # 7 days
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 90000))    # 15 min
+    JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 904800))  # 7 days
 
     # ── Cookie settings ───────────────────────────────────────────────────────
     # Set COOKIE_SECURE=true and COOKIE_SAMESITE=None in production when
