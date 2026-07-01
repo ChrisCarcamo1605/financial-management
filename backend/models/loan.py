@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from . import db
 
 
@@ -86,7 +86,12 @@ class Loan(db.Model):
         data['category_icon'] = self.category.icon if self.category else None
         data['category_icon_type'] = self.category.icon_type if self.category else None
         data['account_name'] = self.account.name if self.account else None
-        data['payments'] = [p.to_dict() for p in sorted(self.payments, key=lambda x: x.due_date)]
+        payments = sorted(self.payments, key=lambda x: x.due_date)
+        data['payments'] = [p.to_dict() for p in payments]
+        # Préstamo saldado antes de que vencieran todas sus cuotas (abonos adelantaron el pago).
+        data['finished_early'] = self.status == 'paid' and any(
+            p.due_date and p.due_date > date.today() for p in payments
+        )
         return data
 
     def __repr__(self):

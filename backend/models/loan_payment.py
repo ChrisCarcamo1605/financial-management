@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from . import db
 
 
@@ -39,6 +39,8 @@ class LoanPayment(db.Model):
             'status': self.status,
             'paid_date': self.paid_date.isoformat() if self.paid_date else None,
             'transaction_id': self.transaction_id,
+            # Saldada antes de su fecha de vencimiento (vía abono) en lugar de en su día normal.
+            'is_advance': self.status == 'paid' and self.due_date is not None and self.due_date > date.today(),
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }

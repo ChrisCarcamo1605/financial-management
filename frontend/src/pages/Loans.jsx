@@ -11,6 +11,7 @@ import { money, fmtDate, isoDate } from '../lib/format';
 import useConfirm from '../hooks/useConfirm';
 
 function LoanModal({ loan, sources, accounts, categories, onClose, onSaved }) {
+  const { currency } = useTheme();
   const [form, setForm] = useState(loan ? { ...loan } : {
     name: '', principal: '', interest_rate: 0, interest_method: 'french',
     payment_type: 'monthly', installments: 12, payment_day: 1, start_date: isoDate(),
@@ -73,6 +74,12 @@ function LoanModal({ loan, sources, accounts, categories, onClose, onSaved }) {
           )}
         </div>
       )}
+      {form.payment_type !== 'single' && Number(form.principal) > 0 && Number(form.installments) > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: -4, marginBottom: 6, fontSize: 12, color: 'var(--t2)' }}>
+          <span>Cuota {form.payment_type === 'monthly' ? 'mensual' : 'quincenal'} estimada (capital ÷ cuotas)</span>
+          <span className="num" style={{ fontWeight: 700, color: 'var(--text)' }}>{money(Number(form.principal) / Number(form.installments), currency)}</span>
+        </div>
+      )}
       <div className="field-row">
         <div className="field"><label>Inicio</label><input type="date" value={form.start_date} onChange={set('start_date')} /></div>
         <div className="field"><label>Fuente de ingreso</label><select value={form.income_source_id} onChange={set('income_source_id')}><option value="">Selecciona…</option>{sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
@@ -103,7 +110,77 @@ function LoanModal({ loan, sources, accounts, categories, onClose, onSaved }) {
   );
 }
 
-function LoanDetail({ loan, currency, onClose, onChanged }) {
+function AbonoModal({ loan, accounts, categories, onClose, onSaved }) {
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(isoDate());
+  const [accountId, setAccountId] = useState(loan.account_id || '');
+  const [categoryId, setCategoryId] = useState(loan.category_id || '');
+  const [busy, setBusy] = useState(false);
+  const expenseCats = categories.filter((c) => c.type === 'expense');
+  const needsAccount = !loan.account_id;
+  const needsCategory = !loan.category_id;
+
+  async function save() {
+    if (!amount) { toast.error('Escribe un monto'); return; }
+    if (!accountId || !categoryId) { toast.error('Selecciona cuenta y categoría'); return; }
+    setBusy(true);
+    try {
+      await api.post('/api/transactions', {
+        account_id: Number(accountId),
+        category_id: Number(categoryId),
+        amount: Number(amount),
+        type: 'expense',
+        date,
+        description: `Abono extra · ${loan.name}`,
+        loan_id: loan.id,
+      });
+      toast.success('Abono registrado');
+      onSaved();
+    } catch (e) { toast.error(e?.response?.data?.error || e?.response?.data?.message || 'Error'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title={`Abonar a ${loan.name}`} onClose={onClose} maxWidth={380} footer={
+      <>
+        <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Guardando…' : 'Abonar'}</button>
+      </>
+    }>
+      <div className="mute" style={{ fontSize: 11.5, marginBottom: 10 }}>
+        El abono se aplica a las cuotas más próximas y adelanta el pago del préstamo.
+      </div>
+      <div className="field-row">
+        <div className="field"><label>Monto</label><input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus /></div>
+        <div className="field"><label>Fecha</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+      </div>
+      {(needsAccount || needsCategory) && (
+        <div className="field-row">
+          {needsAccount && (
+            <div className="field">
+              <label>Cuenta</label>
+              <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">Selecciona…</option>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
+          {needsCategory && (
+            <div className="field">
+              <label>Categoría</label>
+              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                <option value="">Selecciona…</option>
+                {expenseCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function LoanDetail({ loan, currency, onClose, onChanged, onAbonar }) {
   const payments = loan.payments || [];
 
   async function pay(p) {
@@ -116,9 +193,15 @@ function LoanDetail({ loan, currency, onClose, onChanged }) {
   }
 
   const hasAutoTx = loan.account_id && loan.category_id;
+  const advanceCount = payments.filter((p) => p.is_advance).length;
 
   return (
-    <Modal title={loan.name} onClose={onClose} maxWidth={520} footer={<button className="btn btn-ghost" onClick={onClose}>Cerrar</button>}>
+    <Modal title={loan.name} onClose={onClose} maxWidth={520} footer={
+      <>
+        {loan.status !== 'paid' && <button className="btn btn-soft push" onClick={onAbonar}>Abonar</button>}
+        <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
+      </>
+    }>
       {loan.category_name && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
           <span style={{ width: 24, height: 24, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${loan.category_color || 'var(--accent)'} 16%, transparent)`, color: loan.category_color || 'var(--accent)', flexShrink: 0 }}>
@@ -126,6 +209,12 @@ function LoanDetail({ loan, currency, onClose, onChanged }) {
           </span>
           <span style={{ fontSize: 12.5, color: loan.category_color || 'var(--accent)', fontWeight: 500 }}>{loan.category_name}</span>
           {loan.account_name && <span className="mute" style={{ fontSize: 12 }}>· {loan.account_name}</span>}
+        </div>
+      )}
+      {loan.finished_early && (
+        <div className="chip" style={{ color: 'var(--accent)', marginBottom: 10 }}>
+          <span className="dot" style={{ background: 'var(--accent)' }} />
+          Liquidado anticipadamente · {payments.filter((p) => p.status === 'paid').length} de {payments.length} cuotas, gracias a abonos
         </div>
       )}
       <div className="g3" style={{ gap: 10 }}>
@@ -138,22 +227,45 @@ function LoanDetail({ loan, currency, onClose, onChanged }) {
           Pagar genera una transacción en <strong>{loan.account_name}</strong>
         </div>
       )}
+      {!loan.finished_early && advanceCount > 0 && (
+        <div className="mute" style={{ fontSize: 11.5, margin: '8px 0 0' }}>
+          {advanceCount} cuota{advanceCount > 1 ? 's' : ''} adelantada{advanceCount > 1 ? 's' : ''} por abonos extra
+        </div>
+      )}
       <div className="tbl-wrap" style={{ marginTop: 8 }}>
         <table>
           <thead><tr><th>#</th><th>Vence</th><th style={{ textAlign: 'right' }}>Cuota</th><th></th></tr></thead>
           <tbody>
-            {payments.map((p) => (
-              <tr key={p.id}>
-                <td className="mute">{p.installment_number}</td>
-                <td className="mute">{fmtDate(p.due_date)}</td>
-                <td className="amt">{money(p.amount, currency)}</td>
-                <td style={{ textAlign: 'right' }}>
-                  {p.status === 'paid'
-                    ? <span className="chip" style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => pay(p)}><span className="dot" style={{ background: 'var(--accent)' }} />Pagada</span>
-                    : <button className="btn btn-soft" style={{ padding: '4px 10px' }} onClick={() => pay(p)}>Pagar</button>}
-                </td>
-              </tr>
-            ))}
+            {payments.map((p) => {
+              const hasPartialAbono = p.status === 'pending' && Number(p.paid_amount) > 0;
+              return (
+                <tr key={p.id}>
+                  <td className="mute">{p.installment_number}</td>
+                  <td className="mute">{fmtDate(p.due_date)}</td>
+                  <td className="amt">{money(p.amount, currency)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {p.status === 'paid' ? (
+                      <span
+                        className="chip"
+                        style={{ color: 'var(--accent)', cursor: 'pointer' }}
+                        title={p.is_advance ? 'Pagada antes de su fecha por un abono extra' : undefined}
+                        onClick={() => pay(p)}
+                      >
+                        <span className="dot" style={{ background: 'var(--accent)' }} />
+                        {p.is_advance ? 'Adelantada' : 'Pagada'}
+                      </span>
+                    ) : hasPartialAbono ? (
+                      <span className="chip" style={{ color: 'var(--amber)' }} title="Abonado por adelantado; el resto se cubre con las siguientes cuotas o un nuevo abono">
+                        <span className="dot" style={{ background: 'var(--amber)' }} />
+                        Abonado {money(p.paid_amount, currency)} de {money(p.amount, currency)}
+                      </span>
+                    ) : (
+                      <button className="btn btn-soft" style={{ padding: '4px 10px' }} onClick={() => pay(p)}>Pagar</button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -166,6 +278,7 @@ export default function Loans() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [detailId, setDetailId] = useState(null);
+  const [abono, setAbono] = useState(null);
 
   const q = useFetch('/api/loans', { params: { per_page: 100 }, select: (d) => d.data || d.items || d });
   const sourcesQ = useFetch('/api/income-sources', { params: { per_page: 100 }, select: (d) => d.data || d.items || d });
@@ -182,6 +295,7 @@ export default function Loans() {
 
   function onSaved() { setOpen(false); setEditing(null); q.refetch(); }
   function onChanged() { q.refetch(); }
+  function onAbonoSaved() { setAbono(null); q.refetch(); }
 
   return (
     <>
@@ -206,7 +320,7 @@ export default function Loans() {
                       ) : null}
                       {l.name}
                     </span>
-                    <span className="chip" style={{ color: l.status === 'paid' ? 'var(--accent)' : 'var(--amber)' }}>{l.status === 'paid' ? 'Pagado' : 'Activo'}</span>
+                    <span className="chip" style={{ color: l.status === 'paid' ? 'var(--accent)' : 'var(--amber)' }}>{l.status === 'paid' ? (l.finished_early ? 'Pagado anticipado' : 'Pagado') : 'Activo'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span className="num" style={{ fontSize: 18, fontWeight: 700 }}>{money(l.remaining, currency)}</span>
@@ -216,6 +330,7 @@ export default function Loans() {
                   <div className="mute" style={{ fontSize: 11.5, marginTop: 6 }}>
                     {l.interest_method === 'french' ? 'Francés' : 'Simple'} · {l.interest_rate}% · {(l.payments || []).length} cuotas
                     <span className="panel-link" style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); setEditing(l); setOpen(true); }}>Editar</span>
+                    {l.status !== 'paid' && <span className="panel-link" style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); setAbono(l); }}>Abonar</span>}
                   </div>
                 </div>
               );
@@ -224,7 +339,8 @@ export default function Loans() {
         )}
       </div>
       {open && <LoanModal loan={editing} sources={sources} accounts={accounts} categories={categories} onClose={() => setOpen(false)} onSaved={onSaved} />}
-      {detailLoan && <LoanDetail loan={detailLoan} currency={currency} onClose={() => setDetailId(null)} onChanged={onChanged} />}
+      {detailLoan && <LoanDetail loan={detailLoan} currency={currency} onClose={() => setDetailId(null)} onChanged={onChanged} onAbonar={() => setAbono(detailLoan)} />}
+      {abono && <AbonoModal loan={abono} accounts={accounts} categories={categories} onClose={() => setAbono(null)} onSaved={onAbonoSaved} />}
     </>
   );
 }
