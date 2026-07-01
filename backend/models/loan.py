@@ -5,9 +5,9 @@ from . import db
 class Loan(db.Model):
     """Préstamo / crédito del usuario.
 
-    Puede pagarse en cuotas mensuales o en un solo pago. La tasa de interés
-    puede ser cero. El calendario de pagos se materializa en la tabla
-    loan_payments al crear el préstamo.
+    Puede pagarse en cuotas mensuales, quincenales o en un solo pago. La tasa
+    de interés puede ser cero. El calendario de pagos se materializa en la
+    tabla loan_payments al crear el préstamo.
     """
 
     __tablename__ = 'loans'
@@ -20,11 +20,11 @@ class Loan(db.Model):
     interest_rate = db.Column(db.Numeric(5, 2), nullable=False, default=0)
     # 'simple' (interés simple) o 'french' (cuota fija / amortización francesa)
     interest_method = db.Column(db.String(10), nullable=False, default='simple')
-    # 'monthly' (cuotas mensuales) o 'single' (un solo pago)
+    # 'monthly' (cuotas mensuales), 'biweekly' (cuotas quincenales) o 'single' (un solo pago)
     payment_type = db.Column(db.String(10), nullable=False, default='monthly')
     # Número de cuotas (NULL/1 para pago único)
     installments = db.Column(db.Integer, nullable=True)
-    # Día del mes para las cuotas mensuales
+    # Día del mes para las cuotas mensuales (ignorado para quincenales: día 15 y fin de mes)
     payment_day = db.Column(db.Integer, nullable=True)
     # Fecha de origen del préstamo (ancla del calendario) / fecha de pago si es único
     start_date = db.Column(db.Date, nullable=False)

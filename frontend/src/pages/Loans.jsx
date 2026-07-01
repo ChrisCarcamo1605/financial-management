@@ -27,7 +27,7 @@ function LoanModal({ loan, sources, accounts, categories, onClose, onSaved }) {
     const payload = {
       name: form.name, principal: Number(form.principal), interest_rate: Number(form.interest_rate || 0),
       interest_method: form.interest_method, payment_type: form.payment_type,
-      installments: form.payment_type === 'monthly' ? Number(form.installments) : null,
+      installments: form.payment_type !== 'single' ? Number(form.installments) : null,
       payment_day: form.payment_type === 'monthly' ? Number(form.payment_day) : null,
       start_date: form.start_date, income_source_id: Number(form.income_source_id),
       category_id: form.category_id ? Number(form.category_id) : null,
@@ -63,12 +63,14 @@ function LoanModal({ loan, sources, accounts, categories, onClose, onSaved }) {
       </div>
       <div className="field-row">
         <div className="field"><label>Método</label><select value={form.interest_method} onChange={set('interest_method')}><option value="french">Francés</option><option value="simple">Simple</option></select></div>
-        <div className="field"><label>Tipo de pago</label><select value={form.payment_type} onChange={set('payment_type')}><option value="monthly">Mensual</option><option value="single">Único</option></select></div>
+        <div className="field"><label>Tipo de pago</label><select value={form.payment_type} onChange={set('payment_type')}><option value="monthly">Mensual</option><option value="biweekly">Quincenal</option><option value="single">Único</option></select></div>
       </div>
-      {form.payment_type === 'monthly' && (
+      {form.payment_type !== 'single' && (
         <div className="field-row">
           <div className="field"><label>Cuotas</label><input type="number" value={form.installments} onChange={set('installments')} /></div>
-          <div className="field"><label>Día de pago</label><input type="number" min="1" max="31" value={form.payment_day} onChange={set('payment_day')} /></div>
+          {form.payment_type === 'monthly' && (
+            <div className="field"><label>Día de pago</label><input type="number" min="1" max="31" value={form.payment_day} onChange={set('payment_day')} /></div>
+          )}
         </div>
       )}
       <div className="field-row">

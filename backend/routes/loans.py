@@ -15,7 +15,8 @@ from decimal import Decimal
 loans_bp = Blueprint('loans', __name__)
 
 VALID_METHODS = ('simple', 'french')
-VALID_PAYMENT_TYPES = ('monthly', 'single')
+VALID_PAYMENT_TYPES = ('monthly', 'biweekly', 'single')
+INSTALLMENT_PAYMENT_TYPES = ('monthly', 'biweekly')
 
 
 def _parse_date(value):
@@ -74,8 +75,8 @@ def create_loan(user_id, user_email):
     """Crear un préstamo y materializar su calendario de pagos.
 
     Body: { "name", "principal", "interest_rate", "interest_method",
-            "payment_type", "installments", "payment_day", "start_date",
-            "income_source_id" }
+            "payment_type" ('monthly'|'biweekly'|'single'), "installments",
+            "payment_day", "start_date", "income_source_id" }
     """
     data = request.get_json()
 
@@ -92,9 +93,9 @@ def create_loan(user_id, user_email):
         return jsonify({'error': f'payment_type must be one of {VALID_PAYMENT_TYPES}'}), 400
 
     installments = data.get('installments')
-    if payment_type == 'monthly':
+    if payment_type in INSTALLMENT_PAYMENT_TYPES:
         if not installments or int(installments) < 1:
-            return jsonify({'error': 'installments is required for monthly loans'}), 400
+            return jsonify({'error': f'installments is required for {payment_type} loans'}), 400
 
     try:
         # Validar la fuente de ingreso
@@ -119,7 +120,7 @@ def create_loan(user_id, user_email):
             interest_rate=Decimal(str(data.get('interest_rate', 0))),
             interest_method=interest_method,
             payment_type=payment_type,
-            installments=int(installments) if payment_type == 'monthly' else 1,
+            installments=int(installments) if payment_type in INSTALLMENT_PAYMENT_TYPES else 1,
             payment_day=data.get('payment_day'),
             start_date=_parse_date(data['start_date']),
             income_source_id=data['income_source_id'],
