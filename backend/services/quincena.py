@@ -30,6 +30,7 @@ def _build_quincena(label, start, end, payments, income, services,
                 'paid_amount': float(p.paid_amount or 0),
                 'due_date': p.due_date.isoformat(),
                 'status': p.status,
+                'is_advance': p.status == 'paid' and p.due_date > date.today(),
             }
             for p in sorted(in_range, key=lambda x: x.due_date)
         ],

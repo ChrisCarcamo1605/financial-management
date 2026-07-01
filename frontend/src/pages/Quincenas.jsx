@@ -64,7 +64,7 @@ function Divider({ label }) {
   );
 }
 
-function Row({ Icon: IconComp, color, name, sub, amount, positive }) {
+function Row({ Icon: IconComp, color, name, sub, amount, positive, badge }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
       <div style={{
@@ -86,8 +86,21 @@ function Row({ Icon: IconComp, color, name, sub, amount, positive }) {
           </div>
         )}
       </div>
-      <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color: positive ? 'var(--accent)' : 'var(--red)', flexShrink: 0 }}>
-        {amount}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        {badge && (
+          <span style={{
+            fontSize: 10, fontWeight: 600, borderRadius: 4, padding: '2px 7px',
+            background: badge.ok
+              ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
+              : 'color-mix(in srgb, var(--amber) 15%, transparent)',
+            color: badge.ok ? 'var(--accent)' : 'var(--amber)',
+          }}>
+            {badge.label}
+          </span>
+        )}
+        <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color: positive ? 'var(--accent)' : 'var(--red)', flexShrink: 0 }}>
+          {amount}
+        </div>
       </div>
     </div>
   );
@@ -252,9 +265,12 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
       } else {
         amt = total / 2;
       }
-      return amt > 0 ? { id: g.id, name: g.name, amount: amt, icon: g.icon, iconType: g.iconType, color: g.color } : null;
+      if (amt <= 0) return null;
+      // Aportado si hay algún aporte (manual o automático) con fecha dentro de esta quincena.
+      const paid = (g.contributions || []).some((c) => c.date >= q.start && c.date <= q.end);
+      return { id: g.id, name: g.name, amount: amt, icon: g.icon, iconType: g.iconType, color: g.color, paid };
     })
-    .filter(Boolean), [savingsGoals, qNum]);
+    .filter(Boolean), [savingsGoals, qNum, q.start, q.end]);
 
   const totalSavings = savingsRows.reduce((a, r) => a + r.amount, 0);
   const totalFixed   = expenses + totalSavings;
@@ -359,6 +375,10 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
             name={p.loan_name || 'Préstamo'}
             sub={`Cuota ${p.installment_number} · ${fmtDate(p.due_date, 'd MMM')}`}
             amount={`−${money(p.amount, currency)}`}
+            badge={{
+              label: p.status === 'paid' ? (p.is_advance ? '✓ Adelantada' : '✓ Pagada') : 'Pendiente',
+              ok: p.status === 'paid',
+            }}
           />
         ))}
 
@@ -371,6 +391,7 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
             name={s.name}
             sub="Ahorro automático"
             amount={`−${money(s.amount, currency)}`}
+            badge={{ label: s.paid ? '✓ Aportado' : 'Pendiente', ok: s.paid }}
           />
         ))}
 
