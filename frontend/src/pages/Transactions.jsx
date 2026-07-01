@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import Modal from '../components/Modal';
@@ -11,6 +12,11 @@ import api from '../lib/api';
 import { money, signedMoney, fmtDate, isoDate } from '../lib/format';
 
 const empty = { type: 'expense', amount: '', description: '', date: isoDate(), account_id: '', category_id: '' };
+
+function SortIcon({ field, sortField, sortDir }) {
+  if (sortField !== field) return <span style={{ opacity: 0.3, fontSize: 10, marginLeft: 3 }}>↕</span>;
+  return <span style={{ fontSize: 10, marginLeft: 3 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>;
+}
 
 function TxModal({ tx, accounts, categories, onClose, onSaved }) {
   const [form, setForm] = useState(tx ? { ...tx } : empty);
@@ -97,8 +103,12 @@ function TxModal({ tx, accounts, categories, onClose, onSaved }) {
 }
 
 export default function Transactions() {
+  const location = useLocation();
   const { currency } = useTheme();
   const [filterType, setFilterType] = useState('');
+  const [search, setSearch] = useState('');
+  const [sortField, setSortField] = useState('date');
+  const [sortDir, setSortDir] = useState('desc');
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
 
@@ -110,15 +120,59 @@ export default function Transactions() {
   const categories = useMemo(() => (Array.isArray(categoriesQ.data) ? categoriesQ.data : []), [categoriesQ.data]);
   const txs = useMemo(() => (Array.isArray(txQ.data) ? txQ.data : []), [txQ.data]);
 
+  useEffect(() => {
+    if (location.state?.openNew) {
+      setEditing(null);
+      setOpen(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredTxs = useMemo(() => {
+    let result = txs;
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter((t) =>
+        (t.description || '').toLowerCase().includes(q) ||
+        (t.category_name || '').toLowerCase().includes(q) ||
+        (t.account_name || '').toLowerCase().includes(q)
+      );
+    }
+
+    result = [...result].sort((a, b) => {
+      let av, bv;
+      switch (sortField) {
+        case 'amount':      av = Number(a.amount);     bv = Number(b.amount);     break;
+        case 'description': av = a.description || '';  bv = b.description || '';  break;
+        case 'category':    av = a.category_name || ''; bv = b.category_name || ''; break;
+        case 'account':     av = a.account_name || ''; bv = b.account_name || ''; break;
+        default:            av = a.date || '';          bv = b.date || '';         break;
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [txs, search, sortField, sortDir]);
+
   const totals = useMemo(() => {
     let inc = 0, exp = 0;
-    txs.forEach((t) => (t.type === 'income' ? (inc += Number(t.amount)) : (exp += Number(t.amount))));
+    filteredTxs.forEach((t) => (t.type === 'income' ? (inc += Number(t.amount)) : (exp += Number(t.amount))));
     return { inc, exp };
-  }, [txs]);
+  }, [filteredTxs]);
 
   function openNew() { setEditing(null); setOpen(true); }
   function openEdit(t) { setEditing(t); setOpen(true); }
   function onSaved() { setOpen(false); setEditing(null); txQ.refetch(); }
+
+  function toggleSort(field) {
+    if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortField(field); setSortDir('asc'); }
+  }
+
+  const thStyle = { cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' };
 
   return (
     <>
@@ -132,24 +186,48 @@ export default function Transactions() {
       </PageHeader>
 
       <div className="content">
-        {!txQ.loading && txs.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, fontSize: 12.5, color: 'var(--t3)', marginBottom: 12, alignItems: 'center' }}>
-            {txs.length} transacciones <span style={{ color: 'var(--b2)' }}>·</span>
-            <span className="pos num" style={{ fontWeight: 600 }}>+{money(totals.inc, currency)}</span> <span style={{ color: 'var(--b2)' }}>·</span>
-            <span className="neg num" style={{ fontWeight: 600 }}>−{money(totals.exp, currency)}</span>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--t3)', pointerEvents: 'none' }}>
+              <circle cx="6.5" cy="6.5" r="4.5" /><path d="M10.5 10.5l3 3" strokeLinecap="round" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar descripción, categoría, cuenta…"
+              style={{ width: '100%', paddingLeft: 30, boxSizing: 'border-box' }}
+            />
           </div>
-        )}
+          {!txQ.loading && txs.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, fontSize: 12.5, color: 'var(--t3)', alignItems: 'center', flexShrink: 0 }}>
+              {filteredTxs.length}{filteredTxs.length !== txs.length && `/${txs.length}`} transacciones
+              <span style={{ color: 'var(--b2)' }}>·</span>
+              <span className="pos num" style={{ fontWeight: 600 }}>+{money(totals.inc, currency)}</span>
+              <span style={{ color: 'var(--b2)' }}>·</span>
+              <span className="neg num" style={{ fontWeight: 600 }}>−{money(totals.exp, currency)}</span>
+            </div>
+          )}
+        </div>
 
         {txQ.loading ? <Loading /> : txQ.error ? <ErrorState error={txQ.error} onRetry={txQ.refetch} /> : txs.length === 0 ? (
           <EmptyState title="Sin transacciones" sub="Registra tu primera transacción" action={<button className="btn btn-primary" onClick={openNew}><PlusIcon /> Nueva transacción</button>} />
+        ) : filteredTxs.length === 0 ? (
+          <div className="empty"><div className="empty-sub">Sin resultados para "{search}"</div></div>
         ) : (
           <div className="tbl-wrap tbl-scroll">
             <table>
               <thead>
-                <tr><th>Descripción</th><th>Categoría</th><th>Cuenta</th><th>Fecha</th><th style={{ textAlign: 'right' }}>Monto</th></tr>
+                <tr>
+                  <th style={thStyle} onClick={() => toggleSort('description')}>Descripción <SortIcon field="description" sortField={sortField} sortDir={sortDir} /></th>
+                  <th style={thStyle} onClick={() => toggleSort('category')}>Categoría <SortIcon field="category" sortField={sortField} sortDir={sortDir} /></th>
+                  <th style={thStyle} onClick={() => toggleSort('account')}>Cuenta <SortIcon field="account" sortField={sortField} sortDir={sortDir} /></th>
+                  <th style={thStyle} onClick={() => toggleSort('date')}>Fecha <SortIcon field="date" sortField={sortField} sortDir={sortDir} /></th>
+                  <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => toggleSort('amount')}>Monto <SortIcon field="amount" sortField={sortField} sortDir={sortDir} /></th>
+                </tr>
               </thead>
               <tbody>
-                {txs.map((t) => (
+                {filteredTxs.map((t) => (
                   <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(t)}>
                     <td>{t.description || '—'}</td>
                     <td>

@@ -61,7 +61,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard">
-        <button className="btn btn-primary" onClick={() => navigate('/transactions')}>
+        <button className="btn btn-primary" onClick={() => navigate('/transactions', { state: { openNew: true } })}>
           <PlusIcon /> Nueva transacción
         </button>
       </PageHeader>

@@ -1,16 +1,22 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import PageHeader from '../components/PageHeader';
 import { Loading, ErrorState, EmptyState } from '../components/State';
 import Icon from '../components/Icon';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
-import { money, fmtDate } from '../lib/format';
+import { money, fmtDate, fmtDateShort } from '../lib/format';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 function curMonth() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // Días 30-31 pertenecen a Q1 del mes siguiente
+  const ref = d.getDate() >= 30 ? new Date(d.getFullYear(), d.getMonth() + 1, 1) : d;
+  return `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}`;
+}
+function isQ1Today() {
+  const day = new Date().getDate();
+  return day <= 14 || day >= 30;
 }
 function shiftMonth(ym, delta) {
   const [y, m] = ym.split('-').map(Number);
@@ -23,14 +29,6 @@ function IconIncome() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
       <path d="M8 1v14M5 4h4.5a2.5 2.5 0 010 5H5m0-5H3m2 5h5.5a2.5 2.5 0 010 5H5m0-5v5M3 14h2"
-        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconService() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M13.5 8A5.5 5.5 0 012.5 8M2.5 8l2-2M2.5 8l2 2"
         stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
@@ -66,7 +64,7 @@ function Divider({ label }) {
   );
 }
 
-function Row({ Icon, color, name, sub, amount, positive }) {
+function Row({ Icon: IconComp, color, name, sub, amount, positive }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
       <div style={{
@@ -75,7 +73,7 @@ function Row({ Icon, color, name, sub, amount, positive }) {
         background: `color-mix(in srgb, ${color} 14%, transparent)`,
         color,
       }}>
-        <Icon />
+        <IconComp />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -108,26 +106,150 @@ function Pill({ label, value, color }) {
   );
 }
 
+/* ── IncomeSourceRow ─────────────────────────────────────────────────
+   Shows a single income source with its quincena-specific amounts
+   and optional deduction breakdown.                                    */
+const MOD_LABELS = {
+  planilla: 'Planilla',
+  servicios_profesionales: 'Serv. profesionales',
+  pension: 'Pensión',
+};
+
+function IncomeSourceRow({ source, currency }) {
+  const sched = source.pay_schedule === 'biweekly'
+    ? 'Quincenal'
+    : `Mensual · día ${source.pay_day || '—'}`;
+  const hasDeductions = (source.isss > 0) || (source.afp > 0) || (source.isr > 0);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
+      <div style={{
+        width: 30, height: 30, borderRadius: 7, flexShrink: 0, marginTop: 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+        color: 'var(--accent)',
+      }}>
+        <IconIncome />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {source.name}
+        </div>
+        <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
+          {MOD_LABELS[source.modality] || source.modality} · {sched}
+        </div>
+        {hasDeductions && (
+          <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span>Bruto {money(source.gross_amount, currency)}</span>
+            {source.isss > 0 && <span>· ISSS −{money(source.isss, currency)}</span>}
+            {source.afp > 0 && <span>· AFP −{money(source.afp, currency)}</span>}
+            {source.isr > 0 && <span>· ISR −{money(source.isr, currency)}</span>}
+          </div>
+        )}
+      </div>
+      <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent)', flexShrink: 0, marginTop: hasDeductions ? 4 : 0 }}>
+        {money(source.net_amount, currency)}
+      </div>
+    </div>
+  );
+}
+
+/* ── ServiceRow ──────────────────────────────────────────────────────
+   Service row with paid / pending badge.                               */
+function ServiceRow({ service, paid, currency, actualAmount }) {
+  const color = 'var(--red)';
+  const displayAmt = actualAmount ?? service.amount;
+  const hasDiff = actualAmount != null && Math.abs(actualAmount - service.amount) >= 0.01;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
+      <div style={{
+        width: 30, height: 30, borderRadius: 7, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: `color-mix(in srgb, ${color} 14%, transparent)`,
+        color,
+      }}>
+        <Icon icon={service.icon} iconType={service.iconType} size={14} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {service.name}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+          {`Servicio · día ${service.day}`}
+          {hasDiff && <span>· conf. {money(service.amount, currency)}</span>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{
+          fontSize: 10, fontWeight: 600, borderRadius: 4, padding: '2px 7px',
+          background: paid
+            ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
+            : 'color-mix(in srgb, var(--amber) 15%, transparent)',
+          color: paid ? 'var(--accent)' : 'var(--amber)',
+        }}>
+          {paid ? '✓ Pagado' : 'Pendiente'}
+        </span>
+        <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color, flexShrink: 0 }}>
+          −{money(displayAmt, currency)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── TxRow ───────────────────────────────────────────────────────────
+   Renders a single actual transaction in "reales" mode.               */
+function TxRow({ tx, currency }) {
+  const isIncome = tx.type === 'income';
+  const color = tx.category_color || (isIncome ? 'var(--accent)' : 'var(--red)');
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
+      <div style={{
+        width: 30, height: 30, borderRadius: 7, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: `color-mix(in srgb, ${color} 14%, transparent)`,
+        color,
+      }}>
+        <Icon icon={tx.category_icon} iconType={tx.category_icon_type} size={14} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {tx.description || tx.category_name || '—'}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+          {tx.category_name} · {fmtDateShort(tx.date)}
+        </div>
+      </div>
+      <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color: isIncome ? 'var(--accent)' : 'var(--red)', flexShrink: 0 }}>
+        {isIncome ? '+' : '−'}{money(tx.amount, currency)}
+      </div>
+    </div>
+  );
+}
+
 /* ── QuincenaCard ──────────────────────────────────────────────────── */
-function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals }) {
-  const payments  = Array.isArray(q.payments) ? q.payments : [];
-  const services  = Array.isArray(q.services) ? q.services : [];
-  const income    = Number(q.income    || 0);
-  const expenses  = Number(q.expenses  || 0);
-  const qNum      = idx + 1; // 1 or 2
+function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
+  const payments       = Array.isArray(q.payments)       ? q.payments       : [];
+  const services       = Array.isArray(q.services)       ? q.services       : [];
+  const incomeSources  = Array.isArray(q.income_sources) ? q.income_sources : [];
+  const transactions   = Array.isArray(q.transactions)   ? q.transactions   : [];
+  const income         = Number(q.income  || 0);
+  const expenses       = Number(q.expenses || 0);
+  const qNum           = idx + 1;
 
   // savings contributions for this quincena
-  // per_quincena_q1/q2 are null when never explicitly configured → split evenly
   const savingsRows = useMemo(() => (savingsGoals || [])
     .filter((g) => g.active)
     .map((g) => {
       const total = Number(g.per_quincena || 0);
       let amt;
       if (g.per_quincena_q1 != null && g.per_quincena_q2 != null) {
-        // explicit split configured by the user
         amt = qNum === 1 ? Number(g.per_quincena_q1) : Number(g.per_quincena_q2);
       } else {
-        // not configured yet — split evenly
         amt = total / 2;
       }
       return amt > 0 ? { id: g.id, name: g.name, amount: amt, icon: g.icon, iconType: g.iconType, color: g.color } : null;
@@ -138,9 +260,31 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals }) {
   const totalFixed   = expenses + totalSavings;
   const available    = income - totalFixed;
 
+  // Mapa service_id → transacción generada por ese servicio
+  const serviceTxMap = useMemo(() => {
+    const map = {};
+    transactions.forEach((t) => { if (t.recurring_service_id != null) map[t.recurring_service_id] = t; });
+    return map;
+  }, [transactions]);
+
+  const paidServiceIds = useMemo(() => new Set(Object.keys(serviceTxMap).map(Number)), [serviceTxMap]);
+
+  // Gastos reales: solo expenses que NO son de un servicio (esos ya están en la fila del servicio)
+  const expenseTxs = useMemo(
+    () => transactions.filter((t) => t.type === 'expense' && t.recurring_service_id == null),
+    [transactions],
+  );
+  const incomeTxs  = useMemo(() => transactions.filter((t) => t.type === 'income'), [transactions]);
+  const realIncome  = useMemo(() => incomeTxs.reduce((a, t) => a + Number(t.amount), 0), [incomeTxs]);
+  const realExpense = useMemo(() => transactions.filter((t) => t.type === 'expense').reduce((a, t) => a + Number(t.amount), 0), [transactions]);
+  const realNet     = realIncome - realExpense;
+
   const sortedServices = [...services].sort((a, b) => (a.day || 0) - (b.day || 0));
   const sortedPayments = [...payments].sort((a, b) => (a.due_date > b.due_date ? 1 : -1));
-  const hasAny = income > 0 || sortedServices.length > 0 || sortedPayments.length > 0 || savingsRows.length > 0;
+
+  const isFixed   = mode === 'fixed';
+  const hasIncome = incomeSources.length > 0 || income > 0;
+  const hasFixed  = sortedServices.length > 0 || sortedPayments.length > 0 || savingsRows.length > 0;
 
   return (
     <div className="panel" style={isCurrent ? { borderColor: 'var(--accent-border)' } : undefined}>
@@ -157,40 +301,54 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals }) {
             {isCurrent ? 'En curso' : 'Cerrada'}
           </span>
         </div>
-        <div className="g3" style={{ gap: 8 }}>
-          <Pill label="Ingreso"   value={money(income,      currency)} color="var(--accent)" />
-          <Pill label="Fijos + ahorro" value={money(totalFixed, currency)} color="var(--red)"    />
-          <Pill label="Libre"     value={money(available,   currency)} color={available < 0 ? 'var(--red)' : undefined} />
-        </div>
+
+        {isFixed ? (
+          <div className="g3" style={{ gap: 8 }}>
+            <Pill label="Ingreso"        value={money(income,     currency)} color="var(--accent)" />
+            <Pill label="Fijos + ahorro" value={money(totalFixed, currency)} color="var(--red)"    />
+            <Pill label="Libre"          value={money(available,  currency)} color={available < 0 ? 'var(--red)' : undefined} />
+          </div>
+        ) : (
+          <div className="g3" style={{ gap: 8 }}>
+            <Pill label="Ingreso real"  value={money(realIncome,  currency)} color="var(--accent)" />
+            <Pill label="Gastos reales" value={money(realExpense, currency)} color="var(--red)"    />
+            <Pill label="Neto real"     value={money(realNet,     currency)} color={realNet < 0 ? 'var(--red)' : undefined} />
+          </div>
+        )}
       </div>
 
       {/* rows */}
       <div style={{ padding: 8 }}>
-        {income > 0 && (
-          <>
-            <Divider label="Ingresos" />
-            <Row
-              Icon={IconIncome}
-              color="var(--accent)"
-              name="Ingreso neto"
-              sub="Fuentes de ingreso"
-              amount={money(income, currency)}
-              positive
-            />
-          </>
-        )}
 
+        {/* Income sources — always shown in both modes */}
+        {hasIncome && <Divider label="Ingresos" />}
+        {incomeSources.length > 0
+          ? incomeSources.map((src) => (
+              <IncomeSourceRow key={src.id} source={src} currency={currency} />
+            ))
+          : income > 0 && (
+              <Row
+                Icon={IconIncome}
+                color="var(--accent)"
+                name="Ingreso neto"
+                sub="Fuentes de ingreso"
+                amount={money(income, currency)}
+                positive
+              />
+            )
+        }
+
+        {/* Services, loans, savings — always visible in both modes */}
         {(sortedServices.length > 0 || sortedPayments.length > 0) && (
           <Divider label="Gastos fijos" />
         )}
         {sortedServices.map((s) => (
-          <Row
+          <ServiceRow
             key={`s${s.id}`}
-            Icon={() => <Icon icon={s.icon} iconType={s.iconType} size={14} />}
-            color="var(--red)"
-            name={s.name}
-            sub={`Servicio · día ${s.day}`}
-            amount={`−${money(s.amount, currency)}`}
+            service={s}
+            paid={paidServiceIds.has(s.id)}
+            currency={currency}
+            actualAmount={!isFixed && serviceTxMap[s.id] ? Number(serviceTxMap[s.id].amount) : undefined}
           />
         ))}
         {sortedPayments.map((p) => (
@@ -216,10 +374,35 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals }) {
           />
         ))}
 
-        {!hasAny && (
+        {!hasIncome && !hasFixed && isFixed && (
           <div style={{ padding: '20px 10px', textAlign: 'center', color: 'var(--t3)', fontSize: 12.5 }}>
             Sin registros en esta quincena
           </div>
+        )}
+
+        {/* Reales mode: income + expense actual transactions */}
+        {!isFixed && (
+          <>
+            <Divider label={incomeTxs.length > 0 ? `Ingresos reales · ${incomeTxs.length}` : 'Ingresos reales'} />
+            {incomeTxs.length > 0
+              ? incomeTxs.map((t) => <TxRow key={t.id} tx={t} currency={currency} />)
+              : (
+                <div style={{ padding: '16px 10px', textAlign: 'center', color: 'var(--t3)', fontSize: 12.5 }}>
+                  Sin ingresos registrados en este período
+                </div>
+              )
+            }
+
+            <Divider label={expenseTxs.length > 0 ? `Gastos reales · ${expenseTxs.length}` : 'Gastos reales'} />
+            {expenseTxs.length > 0
+              ? expenseTxs.map((t) => <TxRow key={t.id} tx={t} currency={currency} />)
+              : (
+                <div style={{ padding: '16px 10px', textAlign: 'center', color: 'var(--t3)', fontSize: 12.5 }}>
+                  Sin gastos registrados en este período
+                </div>
+              )
+            }
+          </>
         )}
       </div>
 
@@ -228,10 +411,21 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals }) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--bg)',
       }}>
-        <span className="mute" style={{ fontSize: 11.5 }}>Disponible tras fijos y ahorro</span>
-        <span className="num" style={{ fontSize: 16, fontWeight: 700, color: available >= 0 ? 'var(--accent)' : 'var(--red)' }}>
-          {money(available, currency)}
-        </span>
+        {isFixed ? (
+          <>
+            <span className="mute" style={{ fontSize: 11.5 }}>Disponible tras fijos y ahorro</span>
+            <span className="num" style={{ fontSize: 16, fontWeight: 700, color: available >= 0 ? 'var(--accent)' : 'var(--red)' }}>
+              {money(available, currency)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="mute" style={{ fontSize: 11.5 }}>Neto real del período</span>
+            <span className="num" style={{ fontSize: 16, fontWeight: 700, color: realNet >= 0 ? 'var(--accent)' : 'var(--red)' }}>
+              {money(realNet, currency)}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -241,25 +435,35 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals }) {
 export default function Quincenas() {
   const { currency } = useTheme();
   const [month, setMonth] = useState(curMonth);
+  const [mode, setMode] = useState('fixed');
   const q = useFetch('/api/quincenas', { params: { month } });
   const goalsQ = useFetch('/api/savings-goals', { select: (d) => d.data || d.goals || d });
 
-  const data        = q.data || {};
-  const quincenas   = useMemo(() => (Array.isArray(data.quincenas) ? data.quincenas : []), [data]);
+  const data         = q.data || {};
+  const quincenas    = useMemo(() => (Array.isArray(data.quincenas) ? data.quincenas : []), [data]);
   const savingsGoals = useMemo(() => (Array.isArray(goalsQ.data) ? goalsQ.data : []), [goalsQ.data]);
-  const [y, m]      = month.split('-').map(Number);
-  const now         = curMonth();
+  const [y, m]       = month.split('-').map(Number);
+  const now          = curMonth();
 
-  const LEGEND = [
-    { color: 'var(--accent)',  label: 'Ingreso'  },
-    { color: 'var(--red)',     label: 'Servicio'  },
-    { color: 'var(--amber)',   label: 'Préstamo'  },
-    { color: 'var(--violet)',  label: 'Ahorro'    },
+  const LEGEND_FIXED = [
+    { color: 'var(--accent)', label: 'Ingreso'  },
+    { color: 'var(--red)',    label: 'Servicio'  },
+    { color: 'var(--amber)',  label: 'Préstamo'  },
+    { color: 'var(--violet)', label: 'Ahorro'    },
   ];
+  const LEGEND_REAL = [
+    { color: 'var(--accent)', label: 'Ingreso'  },
+    { color: 'var(--red)',    label: 'Gasto'     },
+  ];
+  const legend = mode === 'fixed' ? LEGEND_FIXED : LEGEND_REAL;
 
   return (
     <>
       <PageHeader title={`Quincenas · ${MONTHS[m - 1]} ${y}`}>
+        <div className="seg">
+          <button className={mode === 'fixed' ? 'on' : ''} onClick={() => setMode('fixed')}>Fijos</button>
+          <button className={mode === 'actual' ? 'on' : ''} onClick={() => setMode('actual')}>Reales</button>
+        </div>
         <div className="seg">
           <button onClick={() => setMonth(shiftMonth(month, -1))}>
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -288,7 +492,7 @@ export default function Quincenas() {
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-              {LEGEND.map((l) => (
+              {legend.map((l) => (
                 <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--t2)' }}>
                   <span style={{ width: 9, height: 9, borderRadius: 3, background: l.color }} />
                   {l.label}
@@ -303,8 +507,9 @@ export default function Quincenas() {
                   q={qq}
                   idx={idx}
                   currency={currency}
-                  isCurrent={month === now && idx === (new Date().getDate() <= 15 ? 0 : 1)}
+                  isCurrent={month === now && idx === (isQ1Today() ? 0 : 1)}
                   savingsGoals={savingsGoals}
+                  mode={mode}
                 />
               ))}
             </div>
