@@ -174,7 +174,7 @@ def create_app():
                 user_id = payload['sub']
 
                 accounts = Account.query.filter_by(user_id=user_id).all()
-                total_balance = sum(float(acc.balance) for acc in accounts)
+                total_balance = sum(float(acc.balance) for acc in accounts if acc.type != 'tarjeta_credito')
 
                 today = date.today()
                 start_of_month = today.replace(day=1)

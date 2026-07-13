@@ -196,7 +196,7 @@ export default function Accounts() {
   const [transferOpen, setTransferOpen] = useState(false);
   const q = useFetch('/api/accounts', { params: { per_page: 100 }, select: (d) => d.data || d.items || d });
   const accounts = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
-  const total = accounts.reduce((s, a) => s + Number(a.balance || 0), 0);
+  const total = accounts.filter((a) => a.type !== 'tarjeta_credito').reduce((s, a) => s + Number(a.balance || 0), 0);
 
   const transfersQ = useFetch('/api/transfers', { params: { per_page: 10 }, select: (d) => d.data || d });
   const transfers = useMemo(() => (Array.isArray(transfersQ.data) ? transfersQ.data : []), [transfersQ.data]);
