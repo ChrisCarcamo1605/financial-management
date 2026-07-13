@@ -485,3 +485,29 @@ ALTER TABLE budgets ADD COLUMN IF NOT EXISTS start_day INTEGER;
 -- end_date pasa a ser opcional: ahora significa "cuándo deja de renovarse
 -- el presupuesto", no el fin del periodo actual (que se calcula al vuelo).
 ALTER TABLE budgets ALTER COLUMN end_date DROP NOT NULL;
+
+-- ============================================================================
+-- Migration: tarjetas de crédito + transferencias entre cuentas
+-- ============================================================================
+
+-- Una tarjeta de crédito es una cuenta con type = 'tarjeta_credito'. balance
+-- se comporta igual que en cualquier cuenta (gasto resta, ingreso suma) y
+-- arranca en 0; el disponible se calcula como credit_limit + balance.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'normal';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(15, 2);
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS cutoff_day INTEGER;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS payment_due_day INTEGER;
+
+CREATE TABLE IF NOT EXISTS transfers (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    from_account_id INTEGER NOT NULL REFERENCES accounts(id),
+    to_account_id INTEGER NOT NULL REFERENCES accounts(id),
+    amount NUMERIC(15, 2) NOT NULL,
+    date DATE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE transfers DISABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_transfers_user_id ON transfers(user_id);

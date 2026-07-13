@@ -41,6 +41,14 @@ function IconLoan() {
     </svg>
   );
 }
+function IconCard() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M1 6h14M5 9.5h2M10 9.5h1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
 function IconSavings() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -248,6 +256,7 @@ function TxRow({ tx, currency }) {
 function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
   const payments       = Array.isArray(q.payments)       ? q.payments       : [];
   const services       = Array.isArray(q.services)       ? q.services       : [];
+  const creditCards    = Array.isArray(q.credit_cards)   ? q.credit_cards   : [];
   const incomeSources  = Array.isArray(q.income_sources) ? q.income_sources : [];
   const transactions   = Array.isArray(q.transactions)   ? q.transactions   : [];
   const income         = Number(q.income  || 0);
@@ -300,7 +309,7 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
 
   const isFixed   = mode === 'fixed';
   const hasIncome = incomeSources.length > 0 || income > 0;
-  const hasFixed  = sortedServices.length > 0 || sortedPayments.length > 0 || savingsRows.length > 0;
+  const hasFixed  = sortedServices.length > 0 || sortedPayments.length > 0 || savingsRows.length > 0 || creditCards.length > 0;
 
   return (
     <div className="panel" style={isCurrent ? { borderColor: 'var(--accent-border)' } : undefined}>
@@ -354,8 +363,8 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
             )
         }
 
-        {/* Services, loans, savings — always visible in both modes */}
-        {(sortedServices.length > 0 || sortedPayments.length > 0) && (
+        {/* Services, loans, credit cards, savings — always visible in both modes */}
+        {(sortedServices.length > 0 || sortedPayments.length > 0 || creditCards.length > 0) && (
           <Divider label="Gastos fijos" />
         )}
         {sortedServices.map((s) => (
@@ -379,6 +388,16 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
               label: p.status === 'paid' ? (p.is_advance ? '✓ Adelantada' : '✓ Pagada') : 'Pendiente',
               ok: p.status === 'paid',
             }}
+          />
+        ))}
+        {creditCards.map((c) => (
+          <Row
+            key={`cc${c.id}`}
+            Icon={IconCard}
+            color="var(--pink)"
+            name={c.name}
+            sub={`Corte ${fmtDate(c.cutoff_date, 'd MMM')} · Pagar antes del ${fmtDate(c.payment_due_date, 'd MMM')}`}
+            amount={`−${money(c.amount, currency)}`}
           />
         ))}
 

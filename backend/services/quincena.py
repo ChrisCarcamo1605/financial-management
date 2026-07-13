@@ -7,12 +7,19 @@ import calendar
 from datetime import date
 
 
+def _clamp_day(year, month, day):
+    last = calendar.monthrange(year, month)[1]
+    return date(year, month, min(max(int(day or 1), 1), last))
+
+
 def _build_quincena(label, start, end, payments, income, services,
-                    income_sources=None, transactions=None):
+                    income_sources=None, transactions=None, credit_cards=None):
     in_range = [p for p in payments if start <= p.due_date <= end]
     loan_expenses = sum(float(p.amount) for p in in_range)
     services_expenses = sum(float(s['amount']) for s in services)
-    expenses = round(loan_expenses + services_expenses, 2)
+    credit_cards = credit_cards or []
+    credit_cards_expenses = sum(float(c['amount']) for c in credit_cards)
+    expenses = round(loan_expenses + services_expenses + credit_cards_expenses, 2)
     return {
         'label': label,
         'start': start.isoformat(),
@@ -20,6 +27,7 @@ def _build_quincena(label, start, end, payments, income, services,
         'income': round(income, 2),
         'expenses': expenses,
         'available': round(income - expenses, 2),
+        'credit_cards': sorted(credit_cards, key=lambda x: x['payment_due_date']),
         'payments': [
             {
                 'id': p.id,
@@ -54,6 +62,7 @@ def get_quincena_overview(user_id, year, month):
     from models.income_source import IncomeSource
     from models.recurring_service import RecurringService
     from models.transaction import Transaction
+    from models.account import Account
 
     last_day = calendar.monthrange(year, month)[1]
     prev_year, prev_month = _prev_month(year, month)
@@ -85,6 +94,48 @@ def get_quincena_overview(user_id, year, month):
             'iconType': s.icon_type,
         }
         (services_q1 if _in_q1(day) else services_q2).append(entry)
+
+    # Tarjetas de crédito: el monto a pagar es solo lo cargado en el ciclo
+    # (entre el corte anterior y el corte actual), asignado a la quincena
+    # donde cae la fecha límite de pago.
+    cards = Account.query.filter_by(user_id=user_id, type='tarjeta_credito').all()
+    credit_cards_q1, credit_cards_q2 = [], []
+    for card in cards:
+        due_day = int(card.payment_due_day or 1)
+        if _in_q1(due_day) and due_day >= 30:
+            due_year, due_month = prev_year, prev_month
+        else:
+            due_year, due_month = year, month
+        payment_due_date = _clamp_day(due_year, due_month, due_day)
+
+        cutoff_day = int(card.cutoff_day or 1)
+        cutoff_date = _clamp_day(due_year, due_month, cutoff_day)
+        if cutoff_date > payment_due_date:
+            co_year, co_month = _prev_month(due_year, due_month)
+            cutoff_date = _clamp_day(co_year, co_month, cutoff_day)
+        pco_year, pco_month = _prev_month(cutoff_date.year, cutoff_date.month)
+        prev_cutoff_date = _clamp_day(pco_year, pco_month, cutoff_day)
+
+        cycle_txs = Transaction.query.filter(
+            Transaction.user_id == user_id,
+            Transaction.account_id == card.id,
+            Transaction.type == 'expense',
+            Transaction.date > prev_cutoff_date,
+            Transaction.date <= cutoff_date,
+        ).all()
+        cycle_amount = sum(float(t.amount) for t in cycle_txs)
+        if cycle_amount <= 0:
+            continue
+
+        entry = {
+            'id': card.id,
+            'name': card.name,
+            'amount': round(cycle_amount, 2),
+            'cutoff_date': cutoff_date.isoformat(),
+            'payment_due_date': payment_due_date.isoformat(),
+            'available': float(card.credit_limit + card.balance) if card.credit_limit is not None else None,
+        }
+        (credit_cards_q1 if _in_q1(due_day) else credit_cards_q2).append(entry)
 
     sources = IncomeSource.query.filter_by(user_id=user_id).all()
     income_q1 = income_q2 = 0.0
@@ -146,11 +197,11 @@ def get_quincena_overview(user_id, year, month):
 
     q1 = _build_quincena(
         f'Q1 ({q1_start.strftime("%-d %b")} – {q1_end.strftime("%-d %b")})',
-        q1_start, q1_end, payments, income_q1, services_q1, income_sources_q1, txs_q1,
+        q1_start, q1_end, payments, income_q1, services_q1, income_sources_q1, txs_q1, credit_cards_q1,
     )
     q2 = _build_quincena(
         f'Q2 ({q2_start.strftime("%-d %b")} – {q2_end.strftime("%-d %b")})',
-        q2_start, q2_end, payments, income_q2, services_q2, income_sources_q2, txs_q2,
+        q2_start, q2_end, payments, income_q2, services_q2, income_sources_q2, txs_q2, credit_cards_q2,
     )
 
     return {

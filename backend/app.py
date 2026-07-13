@@ -25,6 +25,7 @@ from routes.quincenas import quincenas_bp
 from routes.recurring_services import recurring_services_bp
 from routes.preferences import preferences_bp
 from routes.savings import savings_bp
+from routes.transfers import transfers_bp
 from datetime import datetime, date, timedelta
 from sqlalchemy import func
 
@@ -95,6 +96,7 @@ def create_app():
     app.register_blueprint(recurring_services_bp)
     app.register_blueprint(preferences_bp)
     app.register_blueprint(savings_bp)
+    app.register_blueprint(transfers_bp)
 
     # ========================
     # Swagger Model Definitions

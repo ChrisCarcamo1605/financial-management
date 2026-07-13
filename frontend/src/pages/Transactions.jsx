@@ -86,7 +86,7 @@ function TxModal({ tx, accounts, categories, onClose, onSaved }) {
           <label>Cuenta</label>
           <select value={form.account_id} onChange={set('account_id')}>
             <option value="">Selecciona…</option>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.type === 'tarjeta_credito' ? `💳 ${a.name}` : a.name}</option>)}
           </select>
         </div>
         <div className="field">
