@@ -164,12 +164,12 @@ def create_app():
             auth_header = request.headers.get('Authorization', '')
             parts = auth_header.split(' ')
             if len(parts) != 2:
-                return jsonify({'error': 'Authentication required'}), 401
+                return {'error': 'Authentication required'}, 401
 
             try:
                 payload = AuthService.decode_access_token(parts[1])
                 if not payload:
-                    return jsonify({'error': 'Invalid or expired token'}), 401
+                    return {'error': 'Invalid or expired token'}, 401
 
                 user_id = payload['sub']
 
@@ -217,7 +217,7 @@ def create_app():
                     .all()
                 budgets_status = [budget.to_dict_full() for budget in budgets]
 
-                return jsonify({
+                return {
                     'total_balance': total_balance,
                     'monthly_income': monthly_income,
                     'monthly_expense': monthly_expense,
@@ -225,12 +225,12 @@ def create_app():
                     'recent_transactions': [t.to_dict_with_relations() for t in recent_transactions],
                     'accounts': [acc.to_dict() for acc in accounts],
                     'budgets_status': budgets_status,
-                })
+                }, 200
 
             except IndexError:
-                return jsonify({'error': 'Invalid token format'}), 401
+                return {'error': 'Invalid token format'}, 401
             except Exception as e:
-                return jsonify({'error': f'Dashboard error: {str(e)}'}), 500
+                return {'error': f'Dashboard error: {str(e)}'}, 500
     
     # Manejo de errores global
     @app.errorhandler(404)
