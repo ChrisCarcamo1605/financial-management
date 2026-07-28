@@ -176,21 +176,43 @@ function IncomeSourceRow({ source, currency }) {
 }
 
 /* ── ServiceRow ──────────────────────────────────────────────────────
-   Service row with paid / pending badge.                               */
+   Service row with paid / pending badge. Services charged to a credit
+   card carry a card marker and their amount is not cash-out of this
+   quincena: it lands on the card payment of the indicated tramo.       */
 function ServiceRow({ service, paid, currency, actualAmount }) {
-  const color = 'var(--red)';
+  const onCard = service.card_id != null;
+  const color = onCard ? 'var(--pink)' : 'var(--red)';
   const displayAmt = actualAmount ?? service.amount;
   const hasDiff = actualAmount != null && Math.abs(actualAmount - service.amount) >= 0.01;
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
-      <div style={{
-        width: 30, height: 30, borderRadius: 7, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: `color-mix(in srgb, ${color} 14%, transparent)`,
-        color,
-      }}>
-        <Icon icon={service.icon} iconType={service.iconType} size={14} />
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{
+          width: 30, height: 30, borderRadius: 7,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `color-mix(in srgb, ${color} 14%, transparent)`,
+          color,
+        }}>
+          <Icon icon={service.icon} iconType={service.iconType} size={14} />
+        </div>
+        {onCard && (
+          <span
+            title={`Se paga con ${service.card_name}`}
+            style={{
+              position: 'absolute', right: -4, bottom: -4,
+              width: 15, height: 15, borderRadius: 5,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--panel)', border: '1px solid var(--border)',
+              color: 'var(--pink)',
+            }}
+          >
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="2" />
+              <path d="M1 6.5h14" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </span>
+        )}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -199,8 +221,16 @@ function ServiceRow({ service, paid, currency, actualAmount }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
           {`Servicio · día ${service.day}`}
+          {onCard && <span>· {service.card_name}</span>}
           {hasDiff && <span>· conf. {money(service.amount, currency)}</span>}
         </div>
+        {onCard && (
+          <div style={{ fontSize: 10.5, color: 'var(--pink)', marginTop: 2 }}>
+            → Se paga en Q{service.card_payment_quincena}
+            {service.card_payment_month && ` ${fmtDate(`${service.card_payment_month}-01`, 'MMM')}`}
+            {' · vence '}{fmtDate(service.card_payment_due_date, 'd MMM')}
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <span style={{
@@ -210,11 +240,55 @@ function ServiceRow({ service, paid, currency, actualAmount }) {
             : 'color-mix(in srgb, var(--amber) 15%, transparent)',
           color: paid ? 'var(--accent)' : 'var(--amber)',
         }}>
-          {paid ? '✓ Pagado' : 'Pendiente'}
+          {paid ? (onCard ? '✓ Cargado' : '✓ Pagado') : 'Pendiente'}
         </span>
-        <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color, flexShrink: 0 }}>
+        <div
+          className="num"
+          title={onCard ? 'No sale de efectivo en este tramo: va al pago de la tarjeta' : undefined}
+          style={{ fontSize: 12.5, fontWeight: 700, color, flexShrink: 0, opacity: onCard ? 0.7 : 1 }}
+        >
           −{money(displayAmt, currency)}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── CreditCardRow ───────────────────────────────────────────────────
+   Card payment of the tramo: charges of the closed cycle plus the
+   recurring services that will land on it.                            */
+function CreditCardRow({ card, currency }) {
+  const color = 'var(--pink)';
+  const projected = Array.isArray(card.services) ? card.services : [];
+  const projectedAmt = Number(card.projected_amount || 0);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
+      <div style={{
+        width: 30, height: 30, borderRadius: 7, flexShrink: 0, marginTop: 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: `color-mix(in srgb, ${color} 14%, transparent)`,
+        color,
+      }}>
+        <IconCard />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {card.name}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+          Corte {fmtDate(card.cutoff_date, 'd MMM')} · Pagar antes del {fmtDate(card.payment_due_date, 'd MMM')}
+        </div>
+        {projected.length > 0 && (
+          <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
+            Incluye {projected.length} servicio{projected.length > 1 ? 's' : ''} ({money(projectedAmt, currency)}):{' '}
+            {projected.map((s) => `${s.name} (${fmtDateShort(s.date)})`).join(', ')}
+          </div>
+        )}
+      </div>
+      <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color, flexShrink: 0 }}>
+        −{money(card.amount, currency)}
       </div>
     </div>
   );
@@ -391,14 +465,7 @@ function QuincenaCard({ q, idx, currency, isCurrent, savingsGoals, mode }) {
           />
         ))}
         {creditCards.map((c) => (
-          <Row
-            key={`cc${c.id}`}
-            Icon={IconCard}
-            color="var(--pink)"
-            name={c.name}
-            sub={`Corte ${fmtDate(c.cutoff_date, 'd MMM')} · Pagar antes del ${fmtDate(c.payment_due_date, 'd MMM')}`}
-            amount={`−${money(c.amount, currency)}`}
-          />
+          <CreditCardRow key={`cc${c.id}`} card={c} currency={currency} />
         ))}
 
         {savingsRows.length > 0 && <Divider label="Ahorro" />}
@@ -488,6 +555,7 @@ export default function Quincenas() {
   const LEGEND_FIXED = [
     { color: 'var(--accent)', label: 'Ingreso'  },
     { color: 'var(--red)',    label: 'Servicio'  },
+    { color: 'var(--pink)',   label: 'Tarjeta'   },
     { color: 'var(--amber)',  label: 'Préstamo'  },
     { color: 'var(--violet)', label: 'Ahorro'    },
   ];
