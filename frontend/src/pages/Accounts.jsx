@@ -22,7 +22,7 @@ function IconCard() {
 }
 
 function emptyAccount() {
-  return { name: '', balance: '', currency: 'USD', type: 'normal', credit_limit: '', cutoff_day: '1', payment_due_day: '15' };
+  return { name: '', balance: '', currency: 'USD', type: 'normal', credit_limit: '', cutoff_day: '1', payment_due_day: '15', start_date: isoDate() };
 }
 
 function AccountModal({ acc, onClose, onSaved }) {
@@ -47,6 +47,7 @@ function AccountModal({ acc, onClose, onSaved }) {
           credit_limit: Number(form.credit_limit),
           cutoff_day: Number(form.cutoff_day),
           payment_due_day: Number(form.payment_due_day),
+          start_date: form.start_date || null,
         }
       : { name: form.name, balance: Number(form.balance || 0), currency: form.currency, type: 'normal' };
     try {
@@ -94,6 +95,13 @@ function AccountModal({ acc, onClose, onSaved }) {
             <div className="field">
               <label>Día límite de pago</label>
               <select value={form.payment_due_day} onChange={set('payment_due_day')}>{DAYS.map((d) => <option key={d} value={d}>{d}</option>)}</select>
+            </div>
+          </div>
+          <div className="field">
+            <label>Fecha de inicio</label>
+            <input type="date" value={form.start_date || ''} onChange={set('start_date')} />
+            <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 4 }}>
+              Desde cuándo tienes la tarjeta. Las quincenas anteriores a esta fecha la ignoran.
             </div>
           </div>
         </>
@@ -239,6 +247,11 @@ export default function Accounts() {
                         <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>
                           Disponible de {money(a.credit_limit, a.currency)} · Corte día {a.cutoff_day} · Pagar antes del {a.payment_due_day}
                         </div>
+                        {a.start_date && (
+                          <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>
+                            Desde {fmtDate(a.start_date)}
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div className="num" style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px', color: Number(a.balance) >= 0 ? 'var(--text)' : 'var(--red)' }}>{money(a.balance, a.currency)}</div>

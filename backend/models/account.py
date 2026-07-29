@@ -18,6 +18,9 @@ class Account(db.Model):
     credit_limit = db.Column(db.Numeric(15, 2), nullable=True)
     cutoff_day = db.Column(db.Integer, nullable=True)
     payment_due_day = db.Column(db.Integer, nullable=True)
+    # Fecha desde la que la tarjeta existe: ciclos y cargos anteriores se
+    # ignoran, para no ensuciar quincenas previas a tenerla.
+    start_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -37,6 +40,7 @@ class Account(db.Model):
             'credit_limit': float(self.credit_limit) if self.credit_limit is not None else None,
             'cutoff_day': self.cutoff_day,
             'payment_due_day': self.payment_due_day,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
             'available': float(self.credit_limit + self.balance) if is_credit_card and self.credit_limit is not None else None,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()

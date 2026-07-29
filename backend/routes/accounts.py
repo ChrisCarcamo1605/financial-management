@@ -5,11 +5,24 @@ from models.transfer import Transfer
 from models import db
 from utils.decorators import token_required
 from sqlalchemy import func
+from datetime import date, datetime
 from decimal import Decimal
 
 accounts_bp = Blueprint('accounts', __name__)
 
 VALID_ACCOUNT_TYPES = ('normal', 'tarjeta_credito')
+
+
+def _parse_start_date(value):
+    """'YYYY-MM-DD' → date. Devuelve (fecha, error)."""
+    if value in (None, ''):
+        return None, None
+    if isinstance(value, date):
+        return value, None
+    try:
+        return datetime.strptime(str(value), '%Y-%m-%d').date(), None
+    except ValueError:
+        return None, 'start_date must be a date in YYYY-MM-DD format'
 
 
 def _validate_credit_card_fields(data):
@@ -83,8 +96,12 @@ def create_account(user_id, user_email):
     if account_type not in VALID_ACCOUNT_TYPES:
         return jsonify({'error': f'type must be one of {VALID_ACCOUNT_TYPES}'}), 400
 
+    start_date = None
     if account_type == 'tarjeta_credito':
         error = _validate_credit_card_fields(data)
+        if error:
+            return jsonify({'error': error}), 400
+        start_date, error = _parse_start_date(data.get('start_date'))
         if error:
             return jsonify({'error': error}), 400
 
@@ -99,6 +116,7 @@ def create_account(user_id, user_email):
             credit_limit=Decimal(str(data['credit_limit'])) if account_type == 'tarjeta_credito' else None,
             cutoff_day=int(data['cutoff_day']) if account_type == 'tarjeta_credito' else None,
             payment_due_day=int(data['payment_due_day']) if account_type == 'tarjeta_credito' else None,
+            start_date=start_date,
         )
 
         db.session.add(account)
@@ -140,6 +158,9 @@ def update_account(user_id, user_email, account_id):
             error = _validate_credit_card_fields(merged)
             if error:
                 return jsonify({'error': error}), 400
+            new_start_date, error = _parse_start_date(data.get('start_date', account.start_date))
+            if error:
+                return jsonify({'error': error}), 400
 
         # Actualizar campos
         if 'name' in data:
@@ -157,10 +178,12 @@ def update_account(user_id, user_email, account_id):
                 account.cutoff_day = int(data['cutoff_day'])
             if 'payment_due_day' in data:
                 account.payment_due_day = int(data['payment_due_day'])
+            account.start_date = new_start_date
         else:
             account.credit_limit = None
             account.cutoff_day = None
             account.payment_due_day = None
+            account.start_date = None
 
         db.session.commit()
         

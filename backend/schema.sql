@@ -511,3 +511,12 @@ CREATE TABLE IF NOT EXISTS transfers (
 );
 ALTER TABLE transfers DISABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_transfers_user_id ON transfers(user_id);
+
+-- ============================================================================
+-- Migration: fecha de inicio de la tarjeta de crédito
+-- ============================================================================
+
+-- Fecha en que el usuario recibió la tarjeta. Los ciclos cuyo corte cae antes
+-- de esta fecha no generan pago, y los cargos/servicios anteriores no se
+-- proyectan: así las quincenas previas a tener la tarjeta quedan intactas.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS start_date DATE;
