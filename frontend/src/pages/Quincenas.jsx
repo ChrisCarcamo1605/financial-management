@@ -226,7 +226,7 @@ function ServiceRow({ service, paid, currency, actualAmount }) {
         </div>
         {onCard && (
           <div style={{ fontSize: 10.5, color: 'var(--pink)', marginTop: 2 }}>
-            → Se paga en Q{service.card_payment_quincena}
+            → Se guarda en esta quincena · se paga en Q{service.card_payment_quincena}
             {service.card_payment_month && ` ${fmtDate(`${service.card_payment_month}-01`, 'MMM')}`}
             {' · vence '}{fmtDate(service.card_payment_due_date, 'd MMM')}
           </div>
@@ -244,7 +244,7 @@ function ServiceRow({ service, paid, currency, actualAmount }) {
         </span>
         <div
           className="num"
-          title={onCard ? 'No sale de efectivo en este tramo: va al pago de la tarjeta' : undefined}
+          title={onCard ? 'Va al pago de la tarjeta; el dinero se guarda en esta quincena' : undefined}
           style={{ fontSize: 12.5, fontWeight: 700, color, flexShrink: 0, opacity: onCard ? 0.7 : 1 }}
         >
           −{money(displayAmt, currency)}
@@ -254,93 +254,192 @@ function ServiceRow({ service, paid, currency, actualAmount }) {
   );
 }
 
-/* ── CardReserveRow ──────────────────────────────────────────────────
-   Money set aside this quincena to cover a card payment that lands on a
-   later one, so the pagón doesn't eat a whole salary.                  */
-function CardReserveRow({ reserve, currency }) {
-  const color = 'var(--violet)';
+/* ── Chevron ─────────────────────────────────────────────────────────
+   Disclosure arrow for the expandable card rows.                      */
+function Chevron({ open }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
+    <svg
+      width="11" height="11" viewBox="0 0 16 16" fill="none"
+      style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s', flexShrink: 0 }}
+    >
+      <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ── ChargeList ──────────────────────────────────────────────────────
+   Every charge behind a card amount: real transactions (services or
+   not) plus the recurring services that haven't hit the card yet.     */
+function ChargeList({ charges, currency, color }) {
+  if (!charges || charges.length === 0) {
+    return (
+      <div style={{ padding: '8px 10px 8px 51px', fontSize: 11, color: 'var(--t3)' }}>
+        Sin gastos registrados en este tramo
+      </div>
+    );
+  }
+  const total = charges.reduce((a, c) => a + Number(c.amount || 0), 0);
+
+  return (
+    <div style={{ padding: '2px 10px 8px 51px' }}>
+      {charges.map((c) => (
+        <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+          <span style={{ color, display: 'flex', flexShrink: 0, opacity: 0.8 }}>
+            <Icon icon={c.icon} iconType={c.iconType} size={12} />
+          </span>
+          <span style={{ fontSize: 11.5, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {c.name}
+          </span>
+          {c.projected && (
+            <span style={{
+              fontSize: 9, fontWeight: 600, borderRadius: 3, padding: '1px 5px', flexShrink: 0,
+              background: 'color-mix(in srgb, var(--amber) 15%, transparent)', color: 'var(--amber)',
+            }}>
+              Proyectado
+            </span>
+          )}
+          <span style={{ fontSize: 10.5, color: 'var(--t3)', flexShrink: 0 }}>{fmtDateShort(c.date)}</span>
+          <span className="num" style={{ fontSize: 11.5, fontWeight: 600, flexShrink: 0, minWidth: 62, textAlign: 'right' }}>
+            {money(c.amount, currency)}
+          </span>
+        </div>
+      ))}
       <div style={{
-        width: 30, height: 30, borderRadius: 7, flexShrink: 0, marginTop: 1,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: `color-mix(in srgb, ${color} 14%, transparent)`,
-        color,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)',
       }}>
-        <IconSavings />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          Guardar para {reserve.card_name}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-          Reserva · se paga en Q{reserve.payment_quincena}
-          {reserve.payment_month && ` ${fmtDate(`${reserve.payment_month}-01`, 'MMM')}`}
-        </div>
-        <div style={{ fontSize: 10.5, color, marginTop: 2 }}>
-          Total del corte {money(reserve.total, currency)} · vence {fmtDate(reserve.payment_due_date, 'd MMM')}
-        </div>
-      </div>
-      <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color, flexShrink: 0 }}>
-        −{money(reserve.amount, currency)}
+        <span style={{ fontSize: 10.5, color: 'var(--t3)' }}>{charges.length} gasto{charges.length > 1 ? 's' : ''}</span>
+        <span className="num" style={{ fontSize: 11.5, fontWeight: 700, color }}>{money(total, currency)}</span>
       </div>
     </div>
   );
 }
 
+/* ── CardReserveRow ──────────────────────────────────────────────────
+   Money set aside this quincena: everything charged to the card during
+   it. The spend happened here, so the cash is saved here, and the
+   payment quincena no longer eats a whole salary.                     */
+function CardReserveRow({ reserve, currency }) {
+  const color = 'var(--violet)';
+  const [open, setOpen] = useState(false);
+  const charges = Array.isArray(reserve.charges) ? reserve.charges : [];
+
+  return (
+    <div>
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 10px',
+          borderRadius: 7, cursor: 'pointer',
+          background: open ? 'var(--bg)' : undefined,
+        }}
+      >
+        <div style={{
+          width: 30, height: 30, borderRadius: 7, flexShrink: 0, marginTop: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `color-mix(in srgb, ${color} 14%, transparent)`,
+          color,
+        }}>
+          <IconSavings />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--t3)' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Guardar para {reserve.card_name}
+            </span>
+            <Chevron open={open} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+            Lo gastado con la tarjeta en esta quincena
+            {charges.length > 0 && ` · ${charges.length} gasto${charges.length > 1 ? 's' : ''}`}
+          </div>
+          <div style={{ fontSize: 10.5, color, marginTop: 2 }}>
+            Se paga en Q{reserve.payment_quincena}
+            {reserve.payment_month && ` ${fmtDate(`${reserve.payment_month}-01`, 'MMM')}`}
+            {' · corte '}{fmtDate(reserve.cutoff_date, 'd MMM')}
+            {' · vence '}{fmtDate(reserve.payment_due_date, 'd MMM')}
+          </div>
+        </div>
+        <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color, flexShrink: 0 }}>
+          −{money(reserve.amount, currency)}
+        </div>
+      </div>
+      {open && <ChargeList charges={charges} currency={currency} color={color} />}
+    </div>
+  );
+}
+
 /* ── CreditCardRow ───────────────────────────────────────────────────
-   Card payment of the tramo: charges of the closed cycle plus the
-   recurring services that will land on it. Only the part that wasn't
-   reserved in earlier quincenas leaves this quincena's cash.          */
+   Card payment of the tramo. Only what was charged inside this same
+   quincena leaves cash: the rest was already saved when it was spent.
+   Click to see every charge of the cycle.                             */
 function CreditCardRow({ card, currency }) {
   const color = 'var(--pink)';
-  const projected = Array.isArray(card.services) ? card.services : [];
-  const projectedAmt = Number(card.projected_amount || 0);
+  const [open, setOpen] = useState(false);
+  const charges = Array.isArray(card.charges) ? card.charges : [];
   const total = Number(card.amount || 0);
   const reservedPrior = Number(card.reserved_prior || 0);
   const cashNeeded = Number(card.cash_needed ?? total);
+  const covered = cashNeeded <= 0.005;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 10px', borderRadius: 7 }}>
-      <div style={{
-        width: 30, height: 30, borderRadius: 7, flexShrink: 0, marginTop: 1,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: `color-mix(in srgb, ${color} 14%, transparent)`,
-        color,
-      }}>
-        <IconCard />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {card.name}
+    <div>
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 10px',
+          borderRadius: 7, cursor: 'pointer',
+          background: open ? 'var(--bg)' : undefined,
+        }}
+      >
+        <div style={{
+          width: 30, height: 30, borderRadius: 7, flexShrink: 0, marginTop: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `color-mix(in srgb, ${color} 14%, transparent)`,
+          color,
+        }}>
+          <IconCard />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-          Corte {fmtDate(card.cutoff_date, 'd MMM')} · Pagar antes del {fmtDate(card.payment_due_date, 'd MMM')}
-        </div>
-        {reservedPrior > 0 && (
-          <div style={{ fontSize: 10.5, color: 'var(--violet)', marginTop: 2 }}>
-            Total {money(total, currency)} − {money(reservedPrior, currency)} ya reservado en quincenas anteriores
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--t3)' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Pago {card.name}
+            </span>
+            <Chevron open={open} />
           </div>
-        )}
-        {projected.length > 0 && (
-          <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
-            Incluye {projected.length} servicio{projected.length > 1 ? 's' : ''} ({money(projectedAmt, currency)}):{' '}
-            {projected.map((s) => `${s.name} (${fmtDateShort(s.date)})`).join(', ')}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+            Corte {fmtDate(card.cutoff_date, 'd MMM')} · Pagar antes del {fmtDate(card.payment_due_date, 'd MMM')}
+            {charges.length > 0 && ` · ${charges.length} gasto${charges.length > 1 ? 's' : ''}`}
           </div>
-        )}
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color }}>
-          −{money(cashNeeded, currency)}
+          {reservedPrior > 0 && (
+            <div style={{ fontSize: 10.5, color: 'var(--violet)', marginTop: 2 }}>
+              {covered
+                ? `Cubierto: los ${money(total, currency)} ya se guardaron en las quincenas donde se gastó`
+                : `Total ${money(total, currency)} − ${money(reservedPrior, currency)} guardado antes`}
+            </div>
+          )}
         </div>
-        {reservedPrior > 0 && (
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          {covered ? (
+            <span style={{
+              fontSize: 10, fontWeight: 600, borderRadius: 4, padding: '2px 7px',
+              background: 'color-mix(in srgb, var(--accent) 15%, transparent)', color: 'var(--accent)',
+            }}>
+              ✓ Ya reservado
+            </span>
+          ) : (
+            <div className="num" style={{ fontSize: 12.5, fontWeight: 700, color }}>
+              −{money(cashNeeded, currency)}
+            </div>
+          )}
           <div className="num" style={{ fontSize: 10, color: 'var(--t3)', marginTop: 2 }}>
             de {money(total, currency)}
           </div>
-        )}
+        </div>
       </div>
+      {open && <ChargeList charges={charges} currency={currency} color={color} />}
     </div>
   );
 }
@@ -380,75 +479,98 @@ function TxRow({ tx, currency }) {
 /* ── CardPlanPanel ───────────────────────────────────────────────────
    Top-of-page summary: how much to set aside each quincena so the card
    payment doesn't land whole on a single salary.                      */
+function CardPlanEntry({ p, currency }) {
+  const [open, setOpen] = useState(false);
+  const charges = Array.isArray(p.charges) ? p.charges : [];
+  const covered = Number(p.cash_needed || 0) <= 0.005;
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', cursor: 'pointer' }}
+      >
+        <span style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {p.card_name}
+          <span style={{ color: 'var(--t3)' }}><Chevron open={open} /></span>
+        </span>
+        <span className="mute" style={{ fontSize: 11 }}>
+          Ciclo {fmtDate(p.cycle_start, 'd MMM')} – {fmtDate(p.cutoff_date, 'd MMM')} ·{' '}
+          vence {fmtDate(p.payment_due_date, 'd MMM')} · total {money(p.total, currency)} ·{' '}
+          {charges.length} gasto{charges.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+        {p.schedule.map((s) => {
+          const isPay = s.role === 'pago';
+          const color = isPay ? 'var(--pink)' : 'var(--violet)';
+          const zeroPay = isPay && Number(s.amount) <= 0.005;
+          return (
+            <div
+              key={`${s.month}-${s.quincena}-${s.role}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 10px', borderRadius: 6,
+                border: `1px solid ${s.in_view ? color : 'var(--border)'}`,
+                background: s.in_view ? `color-mix(in srgb, ${color} 10%, transparent)` : 'var(--bg)',
+                opacity: s.in_view ? 1 : 0.55,
+              }}
+            >
+              <span style={{ fontSize: 10.5, color: 'var(--t3)' }}>
+                Q{s.quincena} {fmtDate(`${s.month}-01`, 'MMM')}
+              </span>
+              <span style={{ fontSize: 10.5, fontWeight: 600, color }}>
+                {isPay ? 'pagar' : 'guardar'}
+              </span>
+              <span className="num" style={{ fontSize: 12, fontWeight: 700, color: zeroPay ? 'var(--accent)' : color }}>
+                {zeroPay ? '✓ cubierto' : money(s.amount, currency)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 5 }}>
+        {covered
+          ? `El día del pago no sale nada del salario: los ${money(p.total, currency)} se guardaron en las quincenas donde se gastó.`
+          : `El día del pago salen ${money(p.cash_needed, currency)}; los otros ${money(p.reserved_prior, currency)} vienen de lo guardado antes.`}
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 6, marginLeft: -41 }}>
+          <ChargeList charges={charges} currency={currency} color="var(--pink)" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CardPlanPanel({ plan, currency }) {
   const toSave = plan.reduce((a, p) => a + Number(p.reserve_in_view || 0), 0);
   const toPay  = plan.reduce((a, p) => a + Number(p.cash_needed || 0), 0);
-  const total  = plan.reduce((a, p) => a + Number(p.total || 0), 0);
 
   return (
-    <div className="panel" style={{ marginBottom: 12, borderColor: 'var(--border)' }}>
+    <div className="panel" style={{ marginBottom: 12 }}>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
         padding: '12px 18px', borderBottom: '1px solid var(--border)',
       }}>
         <span style={{ color: 'var(--pink)', display: 'flex' }}><IconCard /></span>
         <span style={{ fontSize: 12.5, fontWeight: 600 }}>Plan de pago de tarjetas</span>
         <span className="mute" style={{ fontSize: 11 }}>
-          El pagón se reparte entre las quincenas del ciclo
+          El dinero se guarda en la quincena donde se hizo el gasto
         </span>
       </div>
 
       <div style={{ padding: '12px 18px' }}>
-        <div className="g3" style={{ gap: 8, marginBottom: 12 }}>
-          <Pill label="Guardar este mes"  value={money(toSave, currency)} color="var(--violet)" />
-          <Pill label="Sale al pagar"     value={money(toPay,  currency)} color="var(--pink)"   />
-          <Pill label="Total del corte"   value={money(total,  currency)} />
+        <div className="g2" style={{ gap: 8 }}>
+          <Pill label="Guardar este mes"      value={money(toSave, currency)} color="var(--violet)" />
+          <Pill label="Falta al pagar"        value={money(toPay,  currency)} color={toPay > 0 ? 'var(--pink)' : 'var(--accent)'} />
         </div>
 
         {plan.map((p) => (
-          <div key={`${p.card_id}-${p.payment_due_date}`} style={{ marginTop: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{p.card_name}</span>
-              <span className="mute" style={{ fontSize: 11 }}>
-                Corte {fmtDate(p.cutoff_date, 'd MMM')} · vence {fmtDate(p.payment_due_date, 'd MMM')} ·{' '}
-                total {money(p.total, currency)}
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-              {p.schedule.map((s) => {
-                const isPay = s.role === 'pago';
-                const color = isPay ? 'var(--pink)' : 'var(--violet)';
-                return (
-                  <div
-                    key={`${s.month}-${s.quincena}`}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '6px 10px', borderRadius: 6,
-                      border: `1px solid ${s.in_view ? color : 'var(--border)'}`,
-                      background: s.in_view ? `color-mix(in srgb, ${color} 10%, transparent)` : 'var(--bg)',
-                      opacity: s.in_view ? 1 : 0.6,
-                    }}
-                  >
-                    <span style={{ fontSize: 10.5, color: 'var(--t3)' }}>
-                      Q{s.quincena} {fmtDate(`${s.month}-01`, 'MMM')}
-                    </span>
-                    <span style={{ fontSize: 10.5, fontWeight: 600, color }}>
-                      {isPay ? 'pagar' : 'guardar'}
-                    </span>
-                    <span className="num" style={{ fontSize: 12, fontWeight: 700, color }}>
-                      {money(s.amount, currency)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            {p.reserved_prior > 0 && (
-              <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 5 }}>
-                En la quincena del pago solo salen {money(p.cash_needed, currency)}: los otros{' '}
-                {money(p.reserved_prior, currency)} vienen de lo guardado antes.
-              </div>
-            )}
-          </div>
+          <CardPlanEntry key={`${p.card_id}-${p.payment_due_date}`} p={p} currency={currency} />
         ))}
       </div>
     </div>

@@ -4,7 +4,7 @@ Q1: día 30 del mes anterior → día 14 del mes actual
 Q2: día 15 → día 29 del mes actual
 """
 import calendar
-from datetime import date
+from datetime import date, timedelta
 
 
 def _clamp_day(year, month, day):
@@ -111,26 +111,13 @@ def _card_cycle_bounds(card, due_date):
     return _clamp_day(py, pm, cutoff_day), cutoff
 
 
-def _funding_quincenas(card, due_date):
-    """Quincenas que financian el pago de due_date, de la más vieja a la del pago.
-
-    Son las quincenas posteriores al pago anterior de la tarjeta y hasta la del
-    pago actual: en las primeras se guarda dinero y en la última se paga, para
-    que el pagón no consuma un solo salario. Nunca incluye quincenas anteriores
-    a la fecha de inicio de la tarjeta.
-    """
-    idx_due = _qindex_of(due_date)
-    py, pm = _prev_month(due_date.year, due_date.month)
-    prev_due = _clamp_day(py, pm, int(card.payment_due_day or 1))
-    idxs = list(range(_qindex_of(prev_due) + 1, idx_due + 1))
-    if card.start_date:
-        idx_start = _qindex_of(card.start_date)
-        idxs = [i for i in idxs if i >= idx_start]
-    return idxs or [idx_due]
-
-
 def _card_statement(user_id, card, due_date, card_services):
     """Estado de cuenta de la tarjeta que vence en due_date.
+
+    Incluye todos los cargos del ciclo —transacciones reales (sean de un
+    servicio recurrente o no) y servicios aún no materializados— con la
+    quincena en la que se hizo cada uno, que es donde se debe guardar el
+    dinero para pagarlos.
 
     Devuelve None si el ciclo cerró antes de que existiera la tarjeta o si no
     hay nada que pagar.
@@ -151,9 +138,25 @@ def _card_statement(user_id, card, due_date, card_services):
     )
     if start:
         q = q.filter(Transaction.date >= start)
-    cycle_txs = q.all()
+    cycle_txs = q.order_by(Transaction.date).all()
     cycle_amount = sum(float(t.amount) for t in cycle_txs)
     charged_service_ids = {t.recurring_service_id for t in cycle_txs if t.recurring_service_id}
+
+    charges = [
+        {
+            'kind': 'service' if t.recurring_service_id else 'transaction',
+            'id': f't{t.id}',
+            'name': t.description or (t.category.name if t.category else None) or 'Gasto',
+            'amount': float(t.amount),
+            'date': t.date.isoformat(),
+            'icon': t.category.icon if t.category else None,
+            'iconType': t.category.icon_type if t.category else None,
+            'category_name': t.category.name if t.category else None,
+            'projected': False,
+            'quincena_index': _qindex_of(t.date),
+        }
+        for t in cycle_txs
+    ]
 
     # Servicios de esta tarjeta cuyo cargo cae en el ciclo pero aún no se
     # materializó como transacción: se proyectan sobre el pago del ciclo.
@@ -180,12 +183,29 @@ def _card_statement(user_id, card, due_date, card_services):
                 'icon': s.icon,
                 'iconType': s.icon_type,
             })
+            charges.append({
+                'kind': 'service',
+                'id': f's{s.id}',
+                'name': s.name,
+                'amount': float(s.amount),
+                'date': charge_date.isoformat(),
+                'icon': s.icon,
+                'iconType': s.icon_type,
+                'category_name': None,
+                'projected': True,
+                'quincena_index': _qindex_of(charge_date),
+            })
             break
 
     projected_amount = sum(x['amount'] for x in projected_services)
     total_due = cycle_amount + projected_amount
     if total_due <= 0:
         return None
+
+    charges.sort(key=lambda x: x['date'])
+    by_quincena = {}
+    for c in charges:
+        by_quincena[c['quincena_index']] = by_quincena.get(c['quincena_index'], 0.0) + c['amount']
 
     return {
         'id': card.id,
@@ -194,6 +214,9 @@ def _card_statement(user_id, card, due_date, card_services):
         'charged_amount': round(cycle_amount, 2),
         'projected_amount': round(projected_amount, 2),
         'services': sorted(projected_services, key=lambda x: x['date']),
+        'charges': charges,
+        'by_quincena': by_quincena,
+        'cycle_start': (prev_cutoff + timedelta(days=1)).isoformat(),
         'cutoff_date': cutoff.isoformat(),
         'payment_due_date': due_date.isoformat(),
         'available': float(card.credit_limit + card.balance) if card.credit_limit is not None else None,
@@ -289,9 +312,10 @@ def get_quincena_overview(user_id, year, month):
         (services_q1 if is_q1 else services_q2).append(entry)
 
     # Tarjetas de crédito: el monto a pagar es solo lo cargado en el ciclo
-    # (entre el corte anterior y el corte actual). Ese pago se reparte entre
-    # las quincenas que van del pago anterior al actual: en las previas se
-    # guarda una parte (reserva) y en la del pagón solo sale el resto.
+    # (entre el corte anterior y el corte actual). El dinero se guarda en la
+    # quincena en la que se hizo cada cargo —que es cuando se habría gastado
+    # de haber pagado en efectivo— y en la quincena del pagón solo sale lo que
+    # se cargó dentro de ella misma.
     services_by_card = {}
     for s in services:
         if s.account_id in cards_by_id:
@@ -299,8 +323,14 @@ def get_quincena_overview(user_id, year, month):
 
     idx_q1 = _qindex(1, year, month)
     idx_q2 = idx_q1 + 1
-    next_year, next_month = _next_month(year, month)
-    candidate_months = [(prev_year, prev_month), (year, month), (next_year, next_month)]
+    in_view = (idx_q1, idx_q2)
+    n1_year, n1_month = _next_month(year, month)
+    n2_year, n2_month = _next_month(n1_year, n1_month)
+    # Un cargo hecho en el mes visible puede caer en un corte del mes siguiente
+    # y vencer un mes después de ése, de ahí la ventana de cuatro meses.
+    candidate_months = [
+        (prev_year, prev_month), (year, month), (n1_year, n1_month), (n2_year, n2_month),
+    ]
 
     credit_cards_q1, credit_cards_q2 = [], []
     reserves_q1, reserves_q2 = [], []
@@ -316,39 +346,42 @@ def get_quincena_overview(user_id, year, month):
             seen_dues.add(payment_due_date)
 
             idx_due = _qindex_of(payment_due_date)
-            funding = _funding_quincenas(card, payment_due_date)
-            if idx_q1 not in funding and idx_q2 not in funding:
+            if idx_due < idx_q1:
                 continue
 
             statement = _card_statement(user_id, card, payment_due_date, services_by_card.get(card.id, []))
             if statement is None:
                 continue
 
-            per_quincena = round(statement['amount'] / len(funding), 2)
-            before = [i for i in funding if i < idx_due]
-            reserved_prior = round(per_quincena * len(before), 2)
+            by_q = statement['by_quincena']
+            # Lo cargado en quincenas anteriores a la del pago ya se guardó;
+            # solo el resto sale de efectivo el día del pagón.
+            reserved_prior = round(sum(v for i, v in by_q.items() if i < idx_due), 2)
             cash_needed = round(statement['amount'] - reserved_prior, 2)
             due_qnum, due_qyear, due_qmonth = _qparts(idx_due)
             due_month_label = f'{due_qyear}-{due_qmonth:02d}'
 
-            if idx_due in (idx_q1, idx_q2):
+            touches_view = idx_due in in_view or any(i in in_view for i in by_q)
+            if not touches_view:
+                continue
+
+            if idx_due in in_view:
                 entry = {
                     **statement,
                     'reserved_prior': reserved_prior,
                     'cash_needed': cash_needed,
-                    'reserve_per_quincena': per_quincena,
-                    'funding_quincenas': len(funding),
                 }
                 (credit_cards_q1 if idx_due == idx_q1 else credit_cards_q2).append(entry)
 
-            for i in before:
-                if i not in (idx_q1, idx_q2):
+            for i in sorted(by_q):
+                if i >= idx_due or i not in in_view:
                     continue
                 reserve = {
                     'card_id': card.id,
                     'card_name': card.name,
-                    'amount': per_quincena,
+                    'amount': round(by_q[i], 2),
                     'total': statement['amount'],
+                    'charges': [c for c in statement['charges'] if c['quincena_index'] == i],
                     'cutoff_date': statement['cutoff_date'],
                     'payment_due_date': statement['payment_due_date'],
                     'payment_quincena': due_qnum,
@@ -357,25 +390,29 @@ def get_quincena_overview(user_id, year, month):
                 (reserves_q1 if i == idx_q1 else reserves_q2).append(reserve)
 
             schedule = []
-            for i in funding:
+            for i in sorted(set(by_q) | {idx_due}):
                 qn, qy, qm = _qparts(i)
                 is_payment = i == idx_due
+                amount = cash_needed if is_payment else round(by_q[i], 2)
+                if not is_payment and amount <= 0:
+                    continue
                 schedule.append({
                     'quincena': qn,
                     'month': f'{qy}-{qm:02d}',
-                    'amount': cash_needed if is_payment else per_quincena,
+                    'amount': amount,
                     'role': 'pago' if is_payment else 'reserva',
-                    'in_view': i in (idx_q1, idx_q2),
+                    'in_view': i in in_view,
                 })
             card_plan.append({
                 'card_id': card.id,
                 'card_name': card.name,
                 'total': statement['amount'],
+                'charges': statement['charges'],
+                'cycle_start': statement['cycle_start'],
                 'cutoff_date': statement['cutoff_date'],
                 'payment_due_date': statement['payment_due_date'],
                 'payment_quincena': due_qnum,
                 'payment_month': due_month_label,
-                'reserve_per_quincena': per_quincena,
                 'reserved_prior': reserved_prior,
                 'cash_needed': cash_needed,
                 'reserve_in_view': round(sum(
