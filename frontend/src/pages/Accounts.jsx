@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import Modal from '../components/Modal';
+import FormField, { FieldGroup } from '../components/FormField';
 import { Loading, ErrorState, EmptyState } from '../components/State';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
@@ -73,42 +74,35 @@ function AccountModal({ acc, onClose, onSaved }) {
         <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button>
       </>
     }>
-      <div className="field"><label>Nombre</label><input value={form.name} onChange={set('name')} placeholder="BBVA Principal" /></div>
-      <div className="field">
-        <label>Tipo</label>
+      <FormField label="Nombre"><input value={form.name} onChange={set('name')} placeholder="BBVA Principal" /></FormField>
+      <FieldGroup label="Tipo">
         <div className="seg-toggle">
           <button className={!isCard ? 'on-inc' : ''} onClick={() => setForm((f) => ({ ...f, type: 'normal' }))}>Normal</button>
           <button className={isCard ? 'on-exp' : ''} onClick={() => setForm((f) => ({ ...f, type: 'tarjeta_credito' }))}>Tarjeta de crédito</button>
         </div>
-      </div>
+      </FieldGroup>
       {isCard ? (
         <>
           <div className="field-row">
-            <div className="field"><label>Disponible</label><input type="number" step="0.01" value={form.credit_limit} onChange={set('credit_limit')} placeholder="0.00" /></div>
-            <div className="field"><label>Moneda</label><select value={form.currency} onChange={set('currency')}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></div>
+            <FormField label="Disponible"><input type="number" step="0.01" value={form.credit_limit} onChange={set('credit_limit')} placeholder="0.00" /></FormField>
+            <FormField label="Moneda"><select value={form.currency} onChange={set('currency')}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></FormField>
           </div>
           <div className="field-row">
-            <div className="field">
-              <label>Día de corte</label>
+            <FormField label="Día de corte">
               <select value={form.cutoff_day} onChange={set('cutoff_day')}>{DAYS.map((d) => <option key={d} value={d}>{d}</option>)}</select>
-            </div>
-            <div className="field">
-              <label>Día límite de pago</label>
+            </FormField>
+            <FormField label="Día límite de pago">
               <select value={form.payment_due_day} onChange={set('payment_due_day')}>{DAYS.map((d) => <option key={d} value={d}>{d}</option>)}</select>
-            </div>
+            </FormField>
           </div>
-          <div className="field">
-            <label>Fecha de inicio</label>
+          <FormField label="Fecha de inicio" hint="Desde cuándo tienes la tarjeta. Las quincenas anteriores a esta fecha la ignoran.">
             <input type="date" value={form.start_date || ''} onChange={set('start_date')} />
-            <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 4 }}>
-              Desde cuándo tienes la tarjeta. Las quincenas anteriores a esta fecha la ignoran.
-            </div>
-          </div>
+          </FormField>
         </>
       ) : (
         <div className="field-row">
-          <div className="field"><label>Saldo</label><input type="number" step="0.01" value={form.balance} onChange={set('balance')} placeholder="0.00" /></div>
-          <div className="field"><label>Moneda</label><select value={form.currency} onChange={set('currency')}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></div>
+          <FormField label="Saldo"><input type="number" step="0.01" value={form.balance} onChange={set('balance')} placeholder="0.00" /></FormField>
+          <FormField label="Moneda"><select value={form.currency} onChange={set('currency')}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></FormField>
         </div>
       )}
       {ConfirmUI}
@@ -153,26 +147,24 @@ function TransferModal({ accounts, onClose, onSaved }) {
       </>
     }>
       <div className="field-row">
-        <div className="field">
-          <label>Desde</label>
+        <FormField label="Desde">
           <select value={form.from_account_id} onChange={set('from_account_id')}>
             <option value="">Selecciona…</option>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.type === 'tarjeta_credito' ? `💳 ${a.name}` : a.name}</option>)}
           </select>
-        </div>
-        <div className="field">
-          <label>Hacia</label>
+        </FormField>
+        <FormField label="Hacia">
           <select value={form.to_account_id} onChange={set('to_account_id')}>
             <option value="">Selecciona…</option>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.type === 'tarjeta_credito' ? `💳 ${a.name}` : a.name}</option>)}
           </select>
-        </div>
+        </FormField>
       </div>
       <div className="field-row">
-        <div className="field"><label>Monto</label><input type="number" step="0.01" value={form.amount} onChange={set('amount')} placeholder="0.00" /></div>
-        <div className="field"><label>Fecha</label><input type="date" value={form.date} onChange={set('date')} /></div>
+        <FormField label="Monto"><input type="number" step="0.01" value={form.amount} onChange={set('amount')} placeholder="0.00" /></FormField>
+        <FormField label="Fecha"><input type="date" value={form.date} onChange={set('date')} /></FormField>
       </div>
-      <div className="field"><label>Descripción</label><input value={form.description} onChange={set('description')} placeholder="Opcional" /></div>
+      <FormField label="Descripción"><input value={form.description} onChange={set('description')} placeholder="Opcional" /></FormField>
     </Modal>
   );
 }
@@ -231,7 +223,7 @@ export default function Accounts() {
               {accounts.map((a) => {
                 const isCard = a.type === 'tarjeta_credito';
                 return (
-                  <div key={a.id} className="panel panel-pad" style={{ cursor: 'pointer' }} onClick={() => { setEditing(a); setOpen(true); }}>
+                  <button type="button" key={a.id} className="panel panel-pad card-button" onClick={() => { setEditing(a); setOpen(true); }} aria-label={`Editar cuenta ${a.name}`}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                         {isCard && <IconCard />}
@@ -256,7 +248,7 @@ export default function Accounts() {
                     ) : (
                       <div className="num" style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px', color: Number(a.balance) >= 0 ? 'var(--text)' : 'var(--red)' }}>{money(a.balance, a.currency)}</div>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>

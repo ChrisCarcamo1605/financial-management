@@ -113,7 +113,7 @@ function GoalModal({ goal, accounts, onClose, onSaved }) {
       </div>
 
       {!goal?.id && <div className="field"><label>Ahorro inicial</label><input type="number" step="0.01" value={form.current_amount} onChange={set('current_amount')} /></div>}
-      <div className="field"><label>Color</label><div className="swatches">{COLORS.map((c) => <span key={c} className={`sw${form.color === c ? ' sel' : ''}`} style={{ background: c }} onClick={() => setForm((f) => ({ ...f, color: c }))} />)}</div></div>
+      <fieldset className="field fieldset-reset"><legend>Color</legend><div className="swatches">{COLORS.map((c) => <button type="button" key={c} className={`sw${form.color === c ? ' sel' : ''}`} style={{ background: c }} onClick={() => setForm((f) => ({ ...f, color: c }))} aria-label={`Elegir color ${c}`} aria-pressed={form.color === c} />)}</div></fieldset>
       <div className="field"><label>Icono</label><IconPicker value={form.icon} onChange={(key) => setForm((f) => ({ ...f, icon: key }))} /></div>
       {ConfirmUI}
     </Modal>
@@ -241,7 +241,7 @@ export default function Savings() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                       <div style={{ width: 36, height: 36, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}><Icon icon={g.icon} iconType={g.iconType} size={18} /></div>
                       <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{g.name}</div><div className="mute" style={{ fontSize: 11 }}>Meta: {money(g.target_amount, currency)}</div></div>
-                      <span className="panel-link" onClick={() => { setEditing(g); setOpen(true); }}>Editar</span>
+                      <button type="button" className="panel-link link-button" onClick={() => { setEditing(g); setOpen(true); }}>Editar</button>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
                       <ProgressRing pct={g.percentage || 0} color={color} />

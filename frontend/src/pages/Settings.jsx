@@ -54,7 +54,7 @@ function CategoryModal({ cat, defaultType, onClose, onSaved }) {
           <button className={form.type === 'expense' ? 'on-exp' : ''} onClick={() => setForm((f) => ({ ...f, type: 'expense' }))}>Gasto</button>
         </div>
       </div>
-      <div className="field"><label>Color</label><div className="swatches">{CAT_COLORS.map((c) => <span key={c} className={`sw${form.color === c ? ' sel' : ''}`} style={{ background: c }} onClick={() => setForm((f) => ({ ...f, color: c }))} />)}</div></div>
+      <fieldset className="field fieldset-reset"><legend>Color</legend><div className="swatches">{CAT_COLORS.map((c) => <button type="button" key={c} className={`sw${form.color === c ? ' sel' : ''}`} style={{ background: c }} onClick={() => setForm((f) => ({ ...f, color: c }))} aria-label={`Elegir color ${c}`} aria-pressed={form.color === c} />)}</div></fieldset>
       <div className="field"><label>Icono</label><IconPicker value={form.icon} onChange={(key) => setForm((f) => ({ ...f, icon: key }))} /></div>
       {ConfirmUI}
     </Modal>
@@ -86,12 +86,12 @@ export default function Settings() {
           <div className="panel-pad g2" style={{ gap: 20, alignItems: 'start' }}>
             <div>
               <div className="field" style={{ marginBottom: 16 }}>
-                <label>Color de acento</label>
+                <div className="field-label">Color de acento</div>
                 <div className="swatches" style={{ gap: 12 }}>
                   {ACCENT_OPTIONS.map((c) => (
-                    <span key={c} onClick={() => setAccent(c)} style={{ width: 36, height: 36, borderRadius: 9, background: c, cursor: 'pointer', border: accent === c ? '2.5px solid var(--text)' : '2.5px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button type="button" key={c} onClick={() => setAccent(c)} aria-label={`Usar color de acento ${c}`} aria-pressed={accent === c} style={{ width: 36, height: 36, borderRadius: 9, background: c, cursor: 'pointer', border: accent === c ? '2.5px solid var(--text)' : '2.5px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {accent === c && <span style={{ color: '#000', fontWeight: 800 }}>✓</span>}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -136,10 +136,10 @@ export default function Settings() {
             ) : (
               <div className="g2" style={{ gap: 8 }}>
                 {shown.map((c) => (
-                  <div key={c.id} className="preview-box" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer' }} onClick={() => { setEditing(c); setOpen(true); }}>
+                  <button type="button" key={c.id} className="preview-box card-button" style={{ display: 'flex', alignItems: 'center', gap: 11 }} onClick={() => { setEditing(c); setOpen(true); }} aria-label={`Editar categoría ${c.name}`}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${c.color || 'var(--accent)'} 16%, transparent)`, color: c.color || 'var(--accent)', flexShrink: 0 }}><Icon icon={c.icon} iconType={c.iconType} size={16} /></div>
                     <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div><div className="mute" style={{ fontSize: 11 }}>{c.type === 'income' ? 'Ingreso' : 'Gasto'}</div></div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}

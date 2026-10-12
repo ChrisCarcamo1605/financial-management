@@ -27,7 +27,7 @@ export default function Register() {
 
   return (
     <div className="center-screen">
-      <form onSubmit={submit} style={{ width: 360 }}>
+      <form onSubmit={submit} className="auth-form">
         <div className="panel panel-pad" style={{ padding: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
             <div className="logo-icon">
@@ -38,16 +38,17 @@ export default function Register() {
             <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.4px' }}>Caudal</span>
           </div>
 
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Crea tu cuenta</div>
+          <h1 className="auth-title">Crea tu cuenta</h1>
           <div style={{ fontSize: 12.5, color: 'var(--t3)', marginBottom: 24 }}>Empieza a controlar tu flujo de dinero</div>
 
           <div className="field" style={{ marginBottom: 14 }}>
-            <label>Correo electrónico</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" />
+            <label htmlFor="register-email">Correo electrónico</label>
+            <input id="register-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" />
           </div>
           <div className="field" style={{ marginBottom: 4 }}>
-            <label>Contraseña</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+            <label htmlFor="register-password">Contraseña</label>
+            <input id="register-password" type="password" required minLength={6} autoComplete="new-password" aria-describedby="password-help" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+            <span id="password-help" className="field-help">Usa al menos 6 caracteres.</span>
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={busy} style={{ width: '100%', justifyContent: 'center', marginTop: 18, padding: 10 }}>

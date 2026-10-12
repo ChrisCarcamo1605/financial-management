@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { IoIosSettings } from "react-icons/io";
 
 const I = {
@@ -89,7 +89,15 @@ const NAV = [
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches);
   const initials = (user?.email || 'U').slice(0, 2).toUpperCase();
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)');
+    const update = (event) => setIsMobile(event.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   // close sidebar when navigating on mobile
   const handleNav = useCallback(() => {
@@ -97,7 +105,12 @@ export default function Sidebar({ open, onClose }) {
   }, [onClose]);
 
   return (
-    <aside className={`sidebar${open ? ' sidebar-open' : ''}`}>
+    <aside
+      className={`sidebar${open ? ' sidebar-open' : ''}`}
+      aria-label="Navegación principal"
+      aria-hidden={isMobile && !open ? 'true' : undefined}
+      inert={isMobile && !open ? '' : undefined}
+    >
       <div className="sb-logo">
         <div className="logo-icon">
           <svg width="17" height="17" viewBox="0 0 16 16" fill="none">
@@ -107,7 +120,7 @@ export default function Sidebar({ open, onClose }) {
         <span className="logo-name">Caudal</span>
       </div>
 
-      <nav className="sb-nav">
+      <nav className="sb-nav" id="main-navigation">
         {NAV.map((group, gi) => (
           <div key={gi}>
             {group.section && <div className="ng-label">{group.section}</div>}
@@ -119,7 +132,7 @@ export default function Sidebar({ open, onClose }) {
                 onClick={handleNav}
                 className={({ isActive }) => `ni${isActive ? ' active' : ''}`}
               >
-                {it.icon}
+                <span aria-hidden="true">{it.icon}</span>
                 {it.label}
               </NavLink>
             ))}
@@ -130,7 +143,7 @@ export default function Sidebar({ open, onClose }) {
       <div className="sb-foot">
         <div className="avatar">{initials}</div>
         <span className="user-name">{user?.email || 'Usuario'}</span>
-        <button className="sb-logout" onClick={logout} title="Cerrar sesión">
+        <button className="sb-logout" onClick={logout} title="Cerrar sesión" aria-label="Cerrar sesión">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
             <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3M10 11l3-3-3-3M13 8H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

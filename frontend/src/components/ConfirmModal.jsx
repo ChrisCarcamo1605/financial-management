@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useId } from 'react';
+import useDialogA11y from '../hooks/useDialogA11y';
 
 /**
  * Confirmation dialog — replaces browser `confirm()`.
@@ -18,15 +19,9 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
 }) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    const onKey = (e) => { if (e.key === 'Escape') onCancel?.(); };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = '';
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [onCancel]);
+  const titleId = useId();
+  const messageId = useId();
+  const dialogRef = useDialogA11y(onCancel);
 
   return (
     <div
@@ -35,16 +30,22 @@ export default function ConfirmModal({
       onMouseDown={(e) => e.target === e.currentTarget && onCancel?.()}
     >
       <div
+        ref={dialogRef}
         className="modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={message ? messageId : undefined}
+        tabIndex={-1}
         style={{ maxWidth: 380 }}
       >
         <div className="m-head" style={{ borderBottom: 'none', paddingBottom: 8 }}>
-          <span className="m-title">{title}</span>
+          <h2 className="m-title" id={titleId}>{title}</h2>
           <button className="m-close" onClick={onCancel} aria-label="Cerrar">×</button>
         </div>
 
         {message && (
-          <div style={{ padding: '0 20px 16px', fontSize: 13.5, color: 'var(--t2)', lineHeight: 1.6 }}>
+          <div id={messageId} style={{ padding: '0 20px 16px', fontSize: 13.5, color: 'var(--t2)', lineHeight: 1.6 }}>
             {message}
           </div>
         )}

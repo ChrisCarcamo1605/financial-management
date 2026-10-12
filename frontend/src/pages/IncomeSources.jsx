@@ -110,7 +110,7 @@ export default function IncomeSources() {
               <thead><tr><th>Nombre</th><th>Modalidad</th><th>Frecuencia</th><th style={{ textAlign: 'right' }}>Bruto</th><th style={{ textAlign: 'right' }}>Neto</th></tr></thead>
               <tbody>
                 {sources.map((s) => (
-                  <tr key={s.id} style={{ cursor: 'pointer' }} onClick={() => { setEditing(s); setOpen(true); }}>
+                  <tr key={s.id} className="interactive-row" tabIndex={0} aria-label={`Editar fuente ${s.name}`} onClick={() => { setEditing(s); setOpen(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setEditing(s); setOpen(true); } }}>
                     <td style={{ fontWeight: 500 }}>{s.name}</td>
                     <td><span className="chip">{MODALITIES.find((m) => m.v === s.modality)?.l || s.modality}</span></td>
                     <td className="mute">{s.pay_schedule === 'biweekly' ? 'Quincenal' : 'Mensual'}{s.pay_day ? ` · día ${s.pay_day}` : ''}</td>

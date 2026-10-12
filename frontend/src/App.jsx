@@ -1,21 +1,22 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Transactions from './pages/Transactions';
-import Accounts from './pages/Accounts';
-import Budgets from './pages/Budgets';
-import Savings from './pages/Savings';
-import Quincenas from './pages/Quincenas';
-import Loans from './pages/Loans';
-import IncomeSources from './pages/IncomeSources';
-import Services from './pages/Services';
-import Analytics from './pages/Analytics';
-import Settings from './pages/Settings';
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Transactions = lazy(() => import('./pages/Transactions'));
+const Accounts = lazy(() => import('./pages/Accounts'));
+const Budgets = lazy(() => import('./pages/Budgets'));
+const Savings = lazy(() => import('./pages/Savings'));
+const Quincenas = lazy(() => import('./pages/Quincenas'));
+const Loans = lazy(() => import('./pages/Loans'));
+const IncomeSources = lazy(() => import('./pages/IncomeSources'));
+const Services = lazy(() => import('./pages/Services'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 function PublicOnly({ children }) {
   const { user, loading } = useAuth();
@@ -26,7 +27,8 @@ function PublicOnly({ children }) {
 
 export default function App() {
   return (
-    <Routes>
+    <Suspense fallback={<div className="center-screen" role="status" aria-label="Cargando página"><div className="spinner" aria-hidden="true" /></div>}>
+      <Routes>
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
 
@@ -51,6 +53,7 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

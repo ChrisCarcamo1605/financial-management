@@ -1,22 +1,23 @@
-import { useEffect } from 'react';
+import { useId } from 'react';
+import useDialogA11y from '../hooks/useDialogA11y';
 
 export default function Modal({ title, onClose, children, footer, maxWidth }) {
-  // lock body scroll when modal open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    const onKey = (e) => e.key === 'Escape' && onClose?.();
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = '';
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
+  const titleId = useId();
+  const dialogRef = useDialogA11y(onClose);
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div className="modal" style={maxWidth ? { maxWidth } : undefined}>
+      <div
+        ref={dialogRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        style={maxWidth ? { maxWidth } : undefined}
+      >
         <div className="m-head">
-          <span className="m-title">{title}</span>
+          <h2 className="m-title" id={titleId}>{title}</h2>
           <button className="m-close" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
         <div className="m-body">{children}</div>

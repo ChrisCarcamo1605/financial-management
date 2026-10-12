@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageHeader, { PlusIcon } from '../components/PageHeader';
 import Modal from '../components/Modal';
+import FormField, { FieldGroup } from '../components/FormField';
 import { Loading, ErrorState, EmptyState } from '../components/State';
 import Icon from '../components/Icon';
 import useConfirm from '../hooks/useConfirm';
@@ -69,33 +70,30 @@ function TxModal({ tx, accounts, categories, onClose, onSaved }) {
         </>
       }
     >
-      <div className="field">
-        <label>Tipo</label>
+      <FieldGroup label="Tipo">
         <div className="seg-toggle">
           <button className={form.type === 'income' ? 'on-inc' : ''} onClick={() => setForm((f) => ({ ...f, type: 'income', category_id: '' }))}>Ingreso</button>
           <button className={form.type === 'expense' ? 'on-exp' : ''} onClick={() => setForm((f) => ({ ...f, type: 'expense', category_id: '' }))}>Gasto</button>
         </div>
-      </div>
+      </FieldGroup>
       <div className="field-row">
-        <div className="field"><label>Monto</label><input type="number" step="0.01" value={form.amount} onChange={set('amount')} placeholder="0.00" /></div>
-        <div className="field"><label>Fecha</label><input type="date" value={form.date} onChange={set('date')} /></div>
+        <FormField label="Monto"><input type="number" step="0.01" value={form.amount} onChange={set('amount')} placeholder="0.00" /></FormField>
+        <FormField label="Fecha"><input type="date" value={form.date} onChange={set('date')} /></FormField>
       </div>
-      <div className="field"><label>Descripción</label><input value={form.description} onChange={set('description')} placeholder="Opcional" /></div>
+      <FormField label="Descripción"><input value={form.description} onChange={set('description')} placeholder="Opcional" /></FormField>
       <div className="field-row">
-        <div className="field">
-          <label>Cuenta</label>
+        <FormField label="Cuenta">
           <select value={form.account_id} onChange={set('account_id')}>
             <option value="">Selecciona…</option>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.type === 'tarjeta_credito' ? `💳 ${a.name}` : a.name}</option>)}
           </select>
-        </div>
-        <div className="field">
-          <label>Categoría</label>
+        </FormField>
+        <FormField label="Categoría">
           <select value={form.category_id} onChange={set('category_id')}>
             <option value="">Selecciona…</option>
             {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-        </div>
+        </FormField>
       </div>
       {ConfirmUI}
     </Modal>
@@ -104,6 +102,7 @@ function TxModal({ tx, accounts, categories, onClose, onSaved }) {
 
 export default function Transactions() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { currency } = useTheme();
   const [filterType, setFilterType] = useState('');
   const [search, setSearch] = useState('');
@@ -124,9 +123,9 @@ export default function Transactions() {
     if (location.state?.openNew) {
       setEditing(null);
       setOpen(true);
-      window.history.replaceState({}, document.title);
+      navigate(location.pathname, { replace: true, state: null });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.state, navigate]);
 
   const filteredTxs = useMemo(() => {
     let result = txs;
@@ -192,6 +191,7 @@ export default function Transactions() {
               <circle cx="6.5" cy="6.5" r="4.5" /><path d="M10.5 10.5l3 3" strokeLinecap="round" />
             </svg>
             <input
+              aria-label="Buscar transacciones"
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -219,16 +219,20 @@ export default function Transactions() {
             <table>
               <thead>
                 <tr>
-                  <th style={thStyle} onClick={() => toggleSort('description')}>Descripción <SortIcon field="description" sortField={sortField} sortDir={sortDir} /></th>
-                  <th style={thStyle} onClick={() => toggleSort('category')}>Categoría <SortIcon field="category" sortField={sortField} sortDir={sortDir} /></th>
-                  <th style={thStyle} onClick={() => toggleSort('account')}>Cuenta <SortIcon field="account" sortField={sortField} sortDir={sortDir} /></th>
-                  <th style={thStyle} onClick={() => toggleSort('date')}>Fecha <SortIcon field="date" sortField={sortField} sortDir={sortDir} /></th>
-                  <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => toggleSort('amount')}>Monto <SortIcon field="amount" sortField={sortField} sortDir={sortDir} /></th>
+                  {[
+                    ['description', 'Descripción'], ['category', 'Categoría'], ['account', 'Cuenta'], ['date', 'Fecha'], ['amount', 'Monto'],
+                  ].map(([field, label]) => (
+                    <th key={field} aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} style={field === 'amount' ? { textAlign: 'right' } : undefined}>
+                      <button className={`sort-button${field === 'amount' ? ' align-right' : ''}`} style={thStyle} onClick={() => toggleSort(field)}>
+                        {label} <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
+                      </button>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredTxs.map((t) => (
-                  <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(t)}>
+                  <tr key={t.id} className="interactive-row" tabIndex={0} aria-label={`Editar transacción: ${t.description || t.category_name || 'Movimiento'}`} onClick={() => openEdit(t)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openEdit(t); } }}>
                     <td>{t.description || '—'}</td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `color-mix(in srgb, ${t.category_color || 'var(--accent)'} 14%, transparent)`, color: t.category_color || 'var(--accent)', borderRadius: 6, padding: '2px 7px', fontSize: 12, fontWeight: 500 }}>

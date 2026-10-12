@@ -310,7 +310,7 @@ export default function Loans() {
             {loans.map((l) => {
               const p = Number(l.total_amount) ? (Number(l.total_paid) / Number(l.total_amount)) * 100 : 0;
               return (
-                <div key={l.id} className="panel panel-pad" style={{ cursor: 'pointer' }} onClick={() => setDetailId(l.id)}>
+                <div key={l.id} className="panel panel-pad interactive-card" role="button" tabIndex={0} aria-label={`Ver préstamo ${l.name}`} onClick={() => setDetailId(l.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailId(l.id); } }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
                       {l.category_icon ? (
@@ -329,8 +329,8 @@ export default function Loans() {
                   <div className="bar-bg"><div className="bar-fill" style={{ width: `${Math.min(100, p)}%` }} /></div>
                   <div className="mute" style={{ fontSize: 11.5, marginTop: 6 }}>
                     {l.interest_method === 'french' ? 'Francés' : 'Simple'} · {l.interest_rate}% · {(l.payments || []).length} cuotas
-                    <span className="panel-link" style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); setEditing(l); setOpen(true); }}>Editar</span>
-                    {l.status !== 'paid' && <span className="panel-link" style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); setAbono(l); }}>Abonar</span>}
+                    <button type="button" className="panel-link link-button" style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); setEditing(l); setOpen(true); }}>Editar</button>
+                    {l.status !== 'paid' && <button type="button" className="panel-link link-button" style={{ marginLeft: 8 }} onClick={(e) => { e.stopPropagation(); setAbono(l); }}>Abonar</button>}
                   </div>
                 </div>
               );

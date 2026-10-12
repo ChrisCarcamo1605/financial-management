@@ -3,11 +3,12 @@ import Icon from '../Icon';
 
 function buildPath(points, w, h, pad = 8) {
   if (!points.length) return { line: '', area: '' };
-  const min = Math.min(...points);
-  const max = Math.max(...points);
+  const safePoints = points.map(Number).map((value) => Number.isFinite(value) ? value : 0);
+  const min = Math.min(0, ...safePoints);
+  const max = Math.max(0, ...safePoints);
   const range = max - min || 1;
   const stepX = points.length > 1 ? (w - pad * 2) / (points.length - 1) : 0;
-  const coords = points.map((v, i) => {
+  const coords = safePoints.map((v, i) => {
     const x = pad + i * stepX;
     const y = pad + (1 - (v - min) / range) * (h - pad * 2);
     return [x, y];
@@ -23,8 +24,8 @@ export function AreaLineChart({ points = [], labels = [], color = 'var(--accent)
   const { line, area, last } = buildPath(points, W, H, 14);
   const gid = `g${Math.abs(points.reduce((a, b) => a + b, 0)).toString(36)}`;
   return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height }}>
+    <div className="chart-shell" role="img" aria-label={`Evolución del flujo de caja durante ${labels.length} meses`}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height }} aria-hidden="true">
         <defs>
           <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.22" />
@@ -39,9 +40,9 @@ export function AreaLineChart({ points = [], labels = [], color = 'var(--accent)
         {last && <circle cx={last[0]} cy={last[1]} r="4" fill={color} stroke="var(--bg)" strokeWidth="2" />}
       </svg>
       {labels.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+        <div className="chart-labels" style={{ '--chart-columns': labels.length }} aria-hidden="true">
           {labels.map((l, i) => (
-            <span key={i} style={{ fontSize: 10.5, color: i === labels.length - 1 ? 'var(--accent)' : 'var(--t3)', fontWeight: i === labels.length - 1 ? 600 : 400 }}>{l}</span>
+            <span key={i} title={l} className={i === labels.length - 1 ? 'current' : ''}>{l}</span>
           ))}
         </div>
       )}

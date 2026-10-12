@@ -23,7 +23,7 @@ export default function Login() {
 
   return (
     <div className="center-screen">
-      <form onSubmit={submit} style={{ width: 360 }}>
+      <form onSubmit={submit} className="auth-form">
         <div className="panel panel-pad" style={{ padding: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
             <div className="logo-icon">
@@ -34,16 +34,16 @@ export default function Login() {
             <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.4px' }}>Caudal</span>
           </div>
 
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Bienvenido de vuelta</div>
+          <h1 className="auth-title">Bienvenido de vuelta</h1>
           <div style={{ fontSize: 12.5, color: 'var(--t3)', marginBottom: 24 }}>Inicia sesión para continuar</div>
 
           <div className="field" style={{ marginBottom: 14 }}>
-            <label>Correo electrónico</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" />
+            <label htmlFor="login-email">Correo electrónico</label>
+            <input id="login-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" />
           </div>
           <div className="field" style={{ marginBottom: 4 }}>
-            <label>Contraseña</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+            <label htmlFor="login-password">Contraseña</label>
+            <input id="login-password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={busy} style={{ width: '100%', justifyContent: 'center', marginTop: 18, padding: 10 }}>

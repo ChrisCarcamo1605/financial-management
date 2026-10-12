@@ -7,7 +7,7 @@ export default function PageHeader({ title, children }) {
 
   return (
     <div className="topbar">
-      <span className="page-title">{title}</span>
+      <h1 className="page-title">{title}</h1>
       {children && <div className="topbar-right">{children}</div>}
     </div>
   );

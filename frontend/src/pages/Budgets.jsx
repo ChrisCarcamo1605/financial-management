@@ -7,7 +7,7 @@ import Icon from '../components/Icon';
 import { useFetch } from '../hooks/useFetch';
 import { useTheme } from '../context/ThemeContext';
 import api from '../lib/api';
-import { money, fmtDate } from '../lib/format';
+import { money, fmtDate, signedMoney } from '../lib/format';
 import useConfirm from '../hooks/useConfirm';
 
 const WEEKDAYS = [
@@ -111,10 +111,17 @@ export default function Budgets() {
   const { currency } = useTheme();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const q = useFetch('/api/budgets', { params: { per_page: 100 }, select: (d) => d.data || d.items || d });
   const categoriesQ = useFetch('/api/categories', { params: { per_page: 100 }, select: (d) => d.data || d.items || d });
+  const txQ = useFetch('/api/transactions', { params: { type: 'expense', limit: 500 }, select: (d) => d.data || [] });
   const budgets = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
   const categories = useMemo(() => (Array.isArray(categoriesQ.data) ? categoriesQ.data : []), [categoriesQ.data]);
+  const selected = budgets.find((b) => b.id === selectedId) || budgets[0] || null;
+  const budgetTxs = useMemo(() => {
+    if (!selected || !Array.isArray(txQ.data)) return [];
+    return txQ.data.filter((t) => Number(t.category_id) === Number(selected.category_id) && t.date >= selected.cycle_start && t.date <= selected.cycle_end);
+  }, [selected, txQ.data]);
 
   function onSaved() { setOpen(false); setEditing(null); q.refetch(); }
 
@@ -127,12 +134,13 @@ export default function Budgets() {
         {q.loading ? <Loading /> : q.error ? <ErrorState error={q.error} onRetry={q.refetch} /> : budgets.length === 0 ? (
           <EmptyState title="Sin presupuestos" sub="Crea un límite de gasto por categoría" action={<button className="btn btn-primary" onClick={() => setOpen(true)}><PlusIcon /> Nuevo presupuesto</button>} />
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 12 }}>
+          <div className="budget-layout">
+            <div className="budget-card-grid">
             {budgets.map((b) => {
               const p = Number(b.percentage ?? ((Number(b.spent) / Number(b.amount)) * 100 || 0));
               const cls = p >= 100 ? 'over' : p >= 85 ? 'warn' : '';
               return (
-                <div key={b.id} className="panel panel-pad" style={{ cursor: 'pointer' }} onClick={() => { setEditing(b); setOpen(true); }}>
+                <div key={b.id} role="button" tabIndex={0} className={`budget-card ${selected?.id === b.id ? 'selected' : ''}`} onClick={() => setSelectedId(b.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedId(b.id); } }} aria-label={`Ver presupuesto ${b.category_name}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
                       <span style={{ width: 28, height: 28, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${b.category_color || 'var(--accent)'} 16%, transparent)`, color: b.category_color || 'var(--accent)', flexShrink: 0 }}>
@@ -143,6 +151,7 @@ export default function Budgets() {
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {b.active === false && <span className="chip" style={{ color: 'var(--t3)' }}>Vencido</span>}
                       <span className="badge">{PERIOD_LABELS[b.period] || b.period}</span>
+                      <button type="button" className="budget-edit" onClick={(e) => { e.stopPropagation(); setEditing(b); setOpen(true); }} aria-label={`Editar ${b.category_name}`}>•••</button>
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -161,6 +170,33 @@ export default function Budgets() {
                 </div>
               );
             })}
+            </div>
+
+            {selected && (
+              <section className="budget-transactions">
+                <div className="budget-tx-head">
+                  <div>
+                    <span className="dash-eyebrow">Movimientos del ciclo</span>
+                    <h2>{selected.category_name}</h2>
+                    <p>{fmtDate(selected.cycle_start, 'd MMM')} – {fmtDate(selected.cycle_end, 'd MMM')}</p>
+                  </div>
+                  <div className="budget-tx-total"><span>Total gastado</span><strong className="num">{money(selected.spent, currency)}</strong></div>
+                </div>
+                {txQ.loading ? <Loading rows={4} /> : txQ.error ? <ErrorState error={txQ.error} onRetry={txQ.refetch} /> : budgetTxs.length === 0 ? (
+                  <div className="budget-tx-empty"><span>✓</span><b>Sin movimientos en este ciclo</b><small>Cuando registres un gasto en esta categoría aparecerá aquí.</small></div>
+                ) : (
+                  <div className="budget-tx-list">
+                    {budgetTxs.map((t) => (
+                      <div className="budget-tx-row" key={t.id}>
+                        <span className="budget-tx-icon"><Icon icon={t.category_icon || selected.category_icon} iconType={t.category_icon_type} size={14} /></span>
+                        <span className="budget-tx-main"><b>{t.description || t.category_name || 'Gasto'}</b><small>{t.account_name} · {fmtDate(t.date, 'd MMM')}</small></span>
+                        <strong className="num neg">{signedMoney(t.amount, t.type, currency)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
           </div>
         )}
       </div>

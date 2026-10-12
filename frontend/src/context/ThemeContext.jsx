@@ -13,7 +13,12 @@ export const ACCENT_OPTIONS = [
 
 function applyPrefs(prefs) {
   const root = document.documentElement;
-  root.style.setProperty('--accent', prefs.accent_color || DEFAULTS.accent_color);
+  const accent = prefs.accent_color || DEFAULTS.accent_color;
+  const rgb = accent.match(/[a-f\d]{2}/gi)?.map((value) => parseInt(value, 16) / 255) || [0, 0, 0];
+  const luminance = rgb.map((value) => value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  root.style.setProperty('--accent', accent);
+  root.style.setProperty('--accent-fg', luminance > 0.38 ? '#111111' : '#ffffff');
   root.setAttribute('data-theme', prefs.theme || DEFAULTS.theme);
 }
 
