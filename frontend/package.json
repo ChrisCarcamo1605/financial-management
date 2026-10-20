@@ -12,7 +12,8 @@
     "test": "vitest run",
     "serve": "serve -s dist -l $PORT",
     "dev:demo": "vite --mode demo",
-    "build:demo": "tsc -b && vite build --mode demo"
+    "build:demo": "tsc -b && vite build --mode demo",
+    "build:pages": "tsc -b && vite build --mode demo && cp dist/index.html dist/404.html"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

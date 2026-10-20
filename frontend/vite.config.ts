@@ -4,6 +4,8 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+  // Subruta de publicación (p. ej. '/financial-management/' en GitHub Pages).
+  base: process.env.BASE_PATH ?? '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, 'src') },

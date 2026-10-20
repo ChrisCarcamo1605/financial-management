@@ -47,4 +47,7 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
-]);
+], {
+  // Respeta la subruta de publicación (GitHub Pages sirve en /<repo>/).
+  basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/',
+});
