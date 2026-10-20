@@ -65,7 +65,7 @@ interface IconPickerProps {
 
 export function IconPicker({ value, onChange, color }: IconPickerProps) {
   return (
-    <div className="grid max-h-56 gap-3 overflow-y-auto rounded-md border p-3">
+    <div className="grid gap-3 rounded-md border p-3 md:max-h-56 md:overflow-y-auto">
       {ICON_GROUPS.map((group) => (
         <div key={group.label} role="radiogroup" aria-label={group.label}>
           <p className="mb-1.5 text-xs text-muted-foreground">{group.label}</p>

@@ -16,11 +16,16 @@ interface ResponsiveDialogProps {
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  /**
+   * Alto en móvil: 'tall' (fijo, para formularios cuyo contenido cambia al
+   * elegir opciones) o 'fit' (se ajusta al contenido, para diálogos cortos).
+   */
+  mobileHeight?: 'tall' | 'fit';
 }
 
 /** Diálogo centrado en escritorio y hoja inferior arrastrable en móvil. */
 export function ResponsiveDialog({
-  open, onOpenChange, title, description, children, footer, className,
+  open, onOpenChange, title, description, children, footer, className, mobileHeight = 'tall',
 }: ResponsiveDialogProps) {
   const isDesktop = useIsDesktop();
 
@@ -41,12 +46,12 @@ export function ResponsiveDialog({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
-      <DrawerContent className="max-h-[94dvh] data-[vaul-drawer-direction=bottom]:max-h-[94dvh]">
+      <DrawerContent className={cn('max-h-[94dvh] data-[vaul-drawer-direction=bottom]:max-h-[94dvh]', mobileHeight === 'tall' && 'h-[94dvh]')}>
         <DrawerHeader className="text-left group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
           <DrawerTitle>{title}</DrawerTitle>
           {description ? <DrawerDescription>{description}</DrawerDescription> : <DrawerDescription className="sr-only">{title}</DrawerDescription>}
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
         {footer && (
           <DrawerFooter className="flex-col-reverse border-t pb-[max(1rem,env(safe-area-inset-bottom))]">
             {footer}

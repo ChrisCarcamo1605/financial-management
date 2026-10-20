@@ -72,6 +72,7 @@ export function AbonoDialog({ loan, onOpenChange }: AbonoDialogProps) {
 
   return (
     <ResponsiveDialog
+      mobileHeight="fit"
       open={open}
       onOpenChange={onOpenChange}
       title={loan ? t.title(loan.name) : t.fallbackTitle}

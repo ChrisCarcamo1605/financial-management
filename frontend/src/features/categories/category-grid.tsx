@@ -22,7 +22,7 @@ export function CategoryGrid({ categories, value, onChange, invalid, labelledBy 
       role="radiogroup"
       aria-labelledby={labelledBy}
       aria-invalid={invalid || undefined}
-      className={cn('grid max-h-52 grid-cols-3 gap-1.5 overflow-y-auto rounded-md p-0.5 sm:grid-cols-4', invalid && 'ring-1 ring-destructive')}
+      className={cn('grid grid-cols-3 gap-1.5 rounded-md p-0.5 sm:grid-cols-4 md:max-h-52 md:overflow-y-auto', invalid && 'ring-1 ring-destructive')}
     >
       {categories.map((category) => {
         const selected = category.id === value;

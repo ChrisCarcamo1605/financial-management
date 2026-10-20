@@ -50,6 +50,7 @@ export function ContributeForm({ open, onOpenChange, goal }: ContributeFormProps
 
   return (
     <ResponsiveDialog
+      mobileHeight="fit"
       open={open}
       onOpenChange={onOpenChange}
       title={t.savings.contribute.title(goal?.name ?? null)}

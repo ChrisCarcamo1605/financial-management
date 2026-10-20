@@ -191,9 +191,13 @@
   }
   html {
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   body {
     @apply bg-background text-foreground antialiased;
+    /* Red de seguridad contra scroll horizontal en móvil; clip no rompe position: sticky. */
+    overflow-x: clip;
     font-family: var(--font-ui);
     font-feature-settings: 'cv11', 'ss01';
   }

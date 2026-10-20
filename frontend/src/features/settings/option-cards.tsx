@@ -36,7 +36,7 @@ export function OptionCards<T extends string>({ label, value, onChange, options,
             )}
           >
             {option.preview}
-            <span className="max-w-full truncate">{option.label}</span>
+            <span className="max-w-full text-pretty break-words">{option.label}</span>
             {selected && <Check className="absolute top-2 right-2 size-4 text-primary" aria-hidden />}
           </button>
         );

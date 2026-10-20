@@ -44,10 +44,10 @@ export default function SettingsPage() {
       >
         <TabsList
           variant="line"
-          className="h-auto w-full flex-wrap justify-start gap-1 md:sticky md:top-20 md:w-52 md:shrink-0 md:flex-nowrap md:items-stretch"
+          className="grid w-full grid-cols-2 gap-1 group-data-[orientation=horizontal]/tabs:h-auto sm:grid-cols-3 md:sticky md:top-20 md:flex md:w-52 md:shrink-0 md:items-stretch"
         >
           {TABS.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} className="flex-none md:justify-start md:px-3 md:py-2">
+            <TabsTrigger key={tab.id} value={tab.id} className="h-9 flex-none justify-start md:h-auto md:px-3 md:py-2">
               <tab.icon aria-hidden /> {t.tabs[tab.label]}
             </TabsTrigger>
           ))}

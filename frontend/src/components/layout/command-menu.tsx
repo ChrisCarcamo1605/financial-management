@@ -37,7 +37,13 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title={t.command.title} description={t.command.description}>
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t.command.title}
+      description={t.command.description}
+      className="max-sm:top-3 max-sm:translate-y-0 max-sm:max-h-[calc(100dvh-1.5rem)] [&_[cmdk-list]]:max-h-[min(60dvh,26rem)] max-sm:[&_[cmdk-list]]:max-h-[calc(100dvh-8rem)]"
+    >
       <CommandInput placeholder={t.command.placeholder} />
       <CommandList>
         <CommandEmpty>{common.states.noResults}</CommandEmpty>
