@@ -24,10 +24,19 @@ class IncomeSource(db.Model):
     # Día del mes en que se cobra (solo aplica a pay_schedule='monthly')
     pay_day = db.Column(db.Integer, nullable=True)
     currency = db.Column(db.String(3), nullable=False, default='USD')
+    # Dónde se deposita y cómo se categoriza al registrar un cobro (opcionales).
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id', ondelete='SET NULL'), nullable=True, index=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id', ondelete='SET NULL'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     loans = db.relationship('Loan', backref='income_source', lazy=True)
+    account = db.relationship('Account')
+    category = db.relationship('Category')
+
+    def net_per_payment(self, net):
+        """Neto de cada cobro: la mitad si es quincenal, completo si es mensual."""
+        return round(net / 2, 2) if self.pay_schedule == 'biweekly' else net
 
     def to_dict(self):
         """Convertir el modelo a diccionario con el desglose de descuentos."""
@@ -46,6 +55,11 @@ class IncomeSource(db.Model):
             'afp': breakdown['afp'],
             'isr': breakdown['isr'],
             'net_amount': breakdown['net'],
+            'net_per_payment': self.net_per_payment(breakdown['net']),
+            'account_id': self.account_id,
+            'account_name': self.account.name if self.account else None,
+            'category_id': self.category_id,
+            'category_name': self.category.name if self.category else None,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }

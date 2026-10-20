@@ -14,7 +14,7 @@ class Category(db.Model):
     color = db.Column(db.String(7), nullable=True)  # Hex color (#FF5733)
     # 'bootstrap' guarda el nombre del icono (bi-*); 'svg' guarda el markup SVG completo.
     icon = db.Column(db.Text, nullable=True)
-    icon_type = db.Column(db.String(10), nullable=False, default='bootstrap')  # 'bootstrap' | 'svg'
+    icon_type = db.Column(db.String(10), nullable=False, default='registry')  # 'registry' | 'emoji' | 'bootstrap' | 'svg'
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

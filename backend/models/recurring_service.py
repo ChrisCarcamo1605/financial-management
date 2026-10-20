@@ -24,7 +24,7 @@ class RecurringService(db.Model):
     active = db.Column(db.Boolean, nullable=False, default=True)
     # Icono propio (mismo esquema que Category): 'bootstrap' (nombre bi-*) o 'svg' (markup).
     icon = db.Column(db.Text, nullable=True)
-    icon_type = db.Column(db.String(10), nullable=False, default='bootstrap')
+    icon_type = db.Column(db.String(10), nullable=False, default='registry')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

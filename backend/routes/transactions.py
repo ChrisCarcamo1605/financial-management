@@ -12,12 +12,18 @@ from decimal import Decimal
 
 transactions_bp = Blueprint('transactions', __name__)
 
+SORT_COLUMNS = {
+    'date': Transaction.date,
+    'amount': Transaction.amount,
+    'description': Transaction.description,
+}
+
 
 @transactions_bp.route('/api/transactions', methods=['GET'])
 @token_required
 def get_transactions(user_id, user_email):
     """
-    Obtener todas las transacciones del usuario con filtros opcionales y paginación.
+    Obtener las transacciones del usuario con filtros, búsqueda, orden y paginación.
 
     Query params:
         - type: income|expense
@@ -25,26 +31,31 @@ def get_transactions(user_id, user_email):
         - account_id: int
         - start_date: YYYY-MM-DD
         - end_date: YYYY-MM-DD
+        - search: texto (descripción, categoría o cuenta; sin distinguir mayúsculas)
+        - sort: date|amount|description (default date)
+        - order: asc|desc (default desc)
         - limit: int (default 100, max 500)
         - offset: int (default 0)
 
-    Response: { "data": [...], "total": X, "limit": Y, "offset": Z }
+    Response: {
+      "data": [...], "total": X, "limit": Y, "offset": Z,
+      "summary": { "income": I, "expense": E }   # sobre todo el conjunto filtrado
+    }
     """
     try:
-        query = Transaction.query.filter_by(user_id=user_id)
+        query = Transaction.query.filter(Transaction.user_id == user_id)
 
-        # Aplicar filtros
         transaction_type = request.args.get('type')
         if transaction_type in ['income', 'expense']:
-            query = query.filter_by(type=transaction_type)
+            query = query.filter(Transaction.type == transaction_type)
 
         category_id = request.args.get('category_id')
         if category_id:
-            query = query.filter_by(category_id=int(category_id))
+            query = query.filter(Transaction.category_id == int(category_id))
 
         account_id = request.args.get('account_id')
         if account_id:
-            query = query.filter_by(account_id=int(account_id))
+            query = query.filter(Transaction.account_id == int(account_id))
 
         start_date = request.args.get('start_date')
         if start_date:
@@ -54,24 +65,46 @@ def get_transactions(user_id, user_email):
         if end_date:
             query = query.filter(Transaction.date <= date.fromisoformat(end_date))
 
-        # Obtener total antes de paginación
+        search = (request.args.get('search') or '').strip()
+        if search:
+            pattern = f'%{search}%'
+            query = (
+                query.outerjoin(Category, Transaction.category_id == Category.id)
+                .outerjoin(Account, Transaction.account_id == Account.id)
+                .filter(db.or_(
+                    Transaction.description.ilike(pattern),
+                    Category.name.ilike(pattern),
+                    Account.name.ilike(pattern),
+                ))
+            )
+
+        summary_rows = (
+            query.with_entities(Transaction.type, func.sum(Transaction.amount))
+            .group_by(Transaction.type)
+            .all()
+        )
+        summary = {'income': 0.0, 'expense': 0.0}
+        for tx_type, amount in summary_rows:
+            summary[tx_type] = round(float(amount or 0), 2)
+
         total = query.count()
 
-        # Ordenar y paginar
-        limit = min(int(request.args.get('limit', 100)), 500)  # Max 500
-        offset = int(request.args.get('offset', 0))
+        sort_column = SORT_COLUMNS.get(request.args.get('sort'), Transaction.date)
+        descending = request.args.get('order', 'desc') != 'asc'
+        ordering = sort_column.desc() if descending else sort_column.asc()
+        tiebreak = Transaction.id.desc() if descending else Transaction.id.asc()
 
-        transactions = query\
-            .order_by(Transaction.date.desc())\
-            .limit(limit)\
-            .offset(offset)\
-            .all()
+        limit = min(max(int(request.args.get('limit', 100)), 1), 500)
+        offset = max(int(request.args.get('offset', 0)), 0)
+
+        transactions = query.order_by(ordering, tiebreak).limit(limit).offset(offset).all()
 
         return jsonify({
             'data': [t.to_dict_with_relations() for t in transactions],
             'total': total,
             'limit': limit,
-            'offset': offset
+            'offset': offset,
+            'summary': summary,
         }), 200
     except ValueError as e:
         return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
@@ -234,6 +267,14 @@ def update_transaction(user_id, user_email, transaction_id):
             transaction.loan_id = new_loan_id
             if new_loan_id:
                 affected_loan_ids.add(new_loan_id)
+
+        category = Category.query.filter_by(id=transaction.category_id, user_id=user_id).first()
+        if category and category.type != transaction.type:
+            db.session.rollback()
+            return jsonify({'error': f'Category type mismatch. Expected: {category.type}'}), 400
+        if transaction.loan_id and transaction.type != 'expense':
+            db.session.rollback()
+            return jsonify({'error': 'A loan payment must be an expense'}), 400
 
         # Aplicar nuevo balance
         current_account = Account.query.filter_by(id=transaction.account_id, user_id=user_id).first()

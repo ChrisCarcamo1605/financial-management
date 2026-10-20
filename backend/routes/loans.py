@@ -8,7 +8,7 @@ from models.category import Category
 from models import db
 from utils.decorators import token_required
 from services.loan_schedule import build_schedule
-from services.loan_payment import sync_loan_from_transactions, paid_total_for_loan
+from services.loan_payment import sync_loan_from_transactions
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -233,9 +233,16 @@ def delete_loan(user_id, user_email, loan_id):
 @loans_bp.route('/api/loans/loan-payments/<int:payment_id>/pay', methods=['PATCH'])
 @token_required
 def toggle_payment(user_id, user_email, payment_id):
-    """Marcar/desmarcar una cuota como pagada y generar/eliminar la transacción.
+    """Pagar o revertir una cuota, siempre a través de transacciones vinculadas.
 
-    Body opcional: { "status": "paid|pending", "paid_date": "YYYY-MM-DD" }
+    El calendario se reconstruye desde las transacciones del préstamo
+    (`sync_loan_from_transactions`), así que:
+      - 'paid': registra un gasto por lo que falta de esta cuota y de las
+        anteriores pendientes (los abonos saldan primero las más antiguas).
+      - 'pending': solo para la última cuota pagada; elimina el pago más
+        reciente del préstamo y restaura el saldo de su cuenta.
+
+    Body: { "status": "paid|pending", "paid_date": "YYYY-MM-DD" }
     Retorna el préstamo completo actualizado.
     """
     data = request.get_json() or {}
@@ -249,51 +256,52 @@ def toggle_payment(user_id, user_email, payment_id):
         if new_status not in ('paid', 'pending'):
             return jsonify({'error': 'status must be "paid" or "pending"'}), 400
 
-        paid_date = _parse_date(data['paid_date']) if data.get('paid_date') else date.today()
-
         if new_status == 'paid':
-            payment.paid_amount = payment.amount
-            payment.paid_date = paid_date
+            if payment.status == 'paid':
+                return jsonify(loan.to_dict_full()), 200
+            if not loan.account_id or not loan.category_id:
+                return jsonify({'error': 'Asigna una cuenta y una categoría al préstamo para registrar el pago'}), 400
 
-            # Generar transacción automáticamente si el préstamo tiene cuenta y categoría
-            if loan.account_id and loan.category_id:
-                account = Account.query.filter_by(id=loan.account_id, user_id=user_id).first()
-                tx = Transaction(
-                    user_id=user_id,
-                    account_id=loan.account_id,
-                    category_id=loan.category_id,
-                    amount=payment.amount,
-                    type='expense',
-                    description=f'{loan.name} · cuota {payment.installment_number}',
-                    date=paid_date,
-                    loan_id=loan.id,
-                )
-                db.session.add(tx)
-                db.session.flush()
-                payment.transaction_id = tx.id
-                if account:
-                    account.balance = Decimal(str(float(account.balance) - float(payment.amount)))
+            pending = [p for p in loan.payments if p.status == 'pending' and p.installment_number <= payment.installment_number]
+            amount = sum(Decimal(str(p.amount)) - Decimal(str(p.paid_amount or 0)) for p in pending)
+            numbers = sorted(p.installment_number for p in pending)
+            label = f'cuota {numbers[0]}' if len(numbers) == 1 else f'cuotas {numbers[0]}–{numbers[-1]}'
+
+            account = Account.query.filter_by(id=loan.account_id, user_id=user_id).first()
+            if not account:
+                return jsonify({'error': 'Account not found'}), 404
+            paid_date = _parse_date(data['paid_date']) if data.get('paid_date') else date.today()
+            db.session.add(Transaction(
+                user_id=user_id,
+                account_id=loan.account_id,
+                category_id=loan.category_id,
+                amount=amount,
+                type='expense',
+                description=f'{loan.name} · {label}',
+                date=paid_date,
+                loan_id=loan.id,
+            ))
+            account.balance -= amount
         else:
-            # Revertir: eliminar transacción vinculada y restaurar balance
-            if payment.transaction_id:
-                tx = Transaction.query.filter_by(id=payment.transaction_id, user_id=user_id).first()
-                if tx:
-                    account = Account.query.filter_by(id=tx.account_id, user_id=user_id).first()
-                    if account:
-                        account.balance = Decimal(str(float(account.balance) + float(tx.amount)))
-                    db.session.delete(tx)
-                payment.transaction_id = None
+            last_paid = max((p.installment_number for p in loan.payments if p.status == 'paid'), default=None)
+            if payment.status != 'paid' or payment.installment_number != last_paid:
+                return jsonify({'error': 'Solo se puede revertir la última cuota pagada'}), 400
 
-            payment.paid_amount = Decimal('0')
-            payment.paid_date = None
+            latest = (
+                Transaction.query.filter_by(loan_id=loan.id, user_id=user_id)
+                .order_by(Transaction.date.desc(), Transaction.id.desc())
+                .first()
+            )
+            if latest:
+                account = Account.query.filter_by(id=latest.account_id, user_id=user_id).first()
+                if account:
+                    account.balance += latest.amount
+                db.session.delete(latest)
 
-        payment.status = new_status
-
-        # Actualizar estado del préstamo
-        all_paid = all(p.status == 'paid' for p in loan.payments)
-        loan.status = 'paid' if all_paid else 'active'
-
+        db.session.flush()
+        sync_loan_from_transactions(loan)
         db.session.commit()
+        db.session.refresh(loan)
         return jsonify(loan.to_dict_full()), 200
     except ValueError as e:
         db.session.rollback()

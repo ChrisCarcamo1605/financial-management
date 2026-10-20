@@ -1,10 +1,10 @@
 # Financial Management API
 
-Backend API para la gestión de finanzas personales construida con Flask, SQLAlchemy, pandas y Supabase.
+Backend API para la gestión de finanzas personales construida con Flask, SQLAlchemy, pandas y PostgreSQL (local con Docker o Supabase).
 
 ## 🚀 Características
 
-- ✅ Autenticación con Supabase Auth
+- ✅ Autenticación propia con JWT (access en memoria + refresh en cookie httponly)
 - ✅ CRUD completo de cuentas bancarias
 - ✅ Gestión de categorías de ingresos/gastos
 - ✅ Registro de transacciones con balance automático
@@ -17,84 +17,31 @@ Backend API para la gestión de finanzas personales construida con Flask, SQLAlc
 ## 📋 Requisitos
 
 - **Python 3.12** (requerido para pandas)
-- Cuenta de Supabase (gratuita en https://supabase.com)
+- Docker (Postgres local) o cualquier PostgreSQL (p. ej. Supabase)
 
-## ⚙️ Configuración
+## ⚙️ Configuración (desarrollo)
 
-### 1. Configurar Supabase
-
-1. Crea una cuenta en [Supabase](https://supabase.com)
-2. Crea un nuevo proyecto
-3. Ve a **SQL Editor** y ejecuta el archivo `schema.sql` para crear las tablas
-4. Obtén las credenciales desde **Settings > API**:
-   - `SUPABASE_URL`
-   - `SUPABASE_KEY` (Service Role Key)
-   - `SUPABASE_ANON_KEY`
-   - `SUPABASE_JWT_SECRET`
-
-### 2. Instalar Python 3.12
-
-**IMPORTANTE**: Este proyecto requiere Python 3.12 para compatibilidad con pandas.
-
-**Opción A - Microsoft Store:**
-1. Abre Microsoft Store
-2. Busca "Python 3.12"
-3. Instálalo
-
-**Opción B - python.org:**
-Descarga desde: https://www.python.org/downloads/release/python-3128/
-
-### 3. Configurar el proyecto
-
-**Windows (automático):**
 ```bash
+docker compose up -d db                 # Postgres local en :5433 (desde la raíz del repo)
 cd backend
-setup.bat
+uv venv --python 3.12 .venv && uv pip install --python .venv -r requirements.txt
+cp .env.example .env                    # apunta a la DB de Docker
+.venv/bin/python app.py                 # crea las tablas y sirve en :5000
+.venv/bin/python seed.py --reset        # usuario demo@caudal.app / demo1234
 ```
 
-**Manual:**
-```bash
-cd backend
-py -3.12 -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-```
+`seed.py` se niega a correr contra una base de datos remota salvo con `--allow-remote`.
 
-### 4. Configurar variables de entorno
+### Migraciones
 
-```bash
-cp .env.example .env
-```
+Las tablas nuevas se crean con `db.create_all()`, pero las columnas nuevas en tablas
+existentes requieren SQL. Ejecuta en orden los archivos de `migrations/` (son idempotentes):
 
-Edita `.env` con tus credenciales de Supabase:
-
-```env
-SUPABASE_URL=https://tu-proyecto.supabase.co
-SUPABASE_KEY=tu-service-role-key
-SUPABASE_ANON_KEY=tu-anon-key
-SUPABASE_JWT_SECRET=tu-jwt-secret
-SUPABASE_DB_PASSWORD=tu-database-password
-
-JWT_SECRET_KEY=tu-super-secret-jwt-key
-
-CORS_ORIGINS=http://localhost:3000
-```
-
-### 5. Ejecutar la aplicación
-
-**Windows:**
-```bash
-venv\Scripts\activate
-python app.py
-```
-
-**Linux/Mac:**
-```bash
-source venv/bin/activate
-python app.py
-```
-
-La API estará disponible en: `http://localhost:5000`
+- `001_frontend_v2_preferences.sql`: preferencias de apariencia, formato regional y layout del inicio.
+- `002_background_tones.sql`: tono de fondo para tema claro y oscuro.
+- `003_income_source_links.sql`: cuenta y categoría por fuente de ingreso.
+- `004_card_reserve_statuses.sql`: confirmación de reservas de tarjeta por quincena.
+- `005_language.sql`: idioma de la interfaz (es/en).
 
 ## 📚 Endpoints de la API
 
@@ -102,7 +49,10 @@ La API estará disponible en: `http://localhost:5000`
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| POST | `/api/auth/verify` | Verificar token JWT |
+| POST | `/api/auth/register` | Crear cuenta |
+| POST | `/api/auth/login` | Iniciar sesión (devuelve access token + cookie de refresh) |
+| POST | `/api/auth/refresh` | Renovar access token con la cookie |
+| POST | `/api/auth/logout` | Cerrar sesión |
 | GET | `/api/auth/me` | Obtener usuario actual |
 
 ### Cuentas
@@ -169,7 +119,7 @@ La API estará disponible en: `http://localhost:5000`
 Todos los endpoints (excepto `/api/auth/verify` y `/api/health`) requieren un token JWT válido en el header:
 
 ```
-Authorization: Bearer <your-supabase-jwt-token>
+Authorization: Bearer <access_token de /api/auth/login>
 ```
 
 ## 📊 Ejemplos de Uso
@@ -229,7 +179,7 @@ Todas las tablas tienen Row Level Security (RLS) activado para asegurar que cada
 - **numpy**: Operaciones numéricas
 - **Flask-CORS**: Soporte CORS
 - **PyJWT**: Verificación de tokens JWT
-- **Supabase**: Base de datos PostgreSQL + Auth
+- **PostgreSQL**: base de datos (Docker en desarrollo, Supabase u otro en producción)
 - **Chart.js**: Visualización de datos (frontend)
 
 ## 📝 Notas

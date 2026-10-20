@@ -16,5 +16,6 @@ from .savings_goal import SavingsGoal
 from .savings_contribution import SavingsContribution
 from .transfer import Transfer
 from .user_preferences import UserPreferences
+from .card_reserve_status import CardReserveStatus
 from .user import User
 from .refresh_token import RefreshToken

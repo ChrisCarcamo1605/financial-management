@@ -1,0 +1,77 @@
+import type { income as es } from '../es/income';
+
+export const income: typeof es = {
+  page: {
+    title: 'Income',
+    description: 'Your income sources and what you actually take home after deductions.',
+    newIncome: 'New income',
+    emptyTitle: 'Add your salary',
+    emptyDescription: 'From your gross income we calculate ISSS, AFP and income tax, and split the net across your paydays.',
+  },
+  stats: {
+    netMonthly: 'Monthly net',
+    perQuincena: 'Per payday',
+    average: 'Average',
+    deductionsMonthly: 'Monthly deductions',
+    fromGross: 'Of',
+    gross: 'gross',
+  },
+  card: {
+    netPerMonth: 'net per month',
+    gross: 'Gross',
+    tax: 'Income tax',
+    recordedIn: (destination: string) => `Recorded in ${destination}`,
+    noDestination: 'No deposit account assigned',
+    registerPayment: 'Record payment of',
+  },
+  modality: {
+    planilla: 'Payroll',
+    servicios_profesionales: 'Freelance (professional services)',
+    pension: 'Pension',
+  },
+  modalityShort: {
+    planilla: 'Payroll',
+    servicios_profesionales: 'Freelance',
+    pension: 'Pension',
+  },
+  schedule: {
+    monthly: 'Monthly',
+    biweekly: 'Every payday',
+    monthlyOnDay: (day: number) => `Monthly, day ${day}`,
+  },
+  perPayment: {
+    biweekly: 'per payday',
+    monthly: 'per month',
+  },
+  picker: {
+    label: 'Income source',
+  },
+  form: {
+    newTitle: 'New income',
+    editTitle: 'Edit income',
+    description: 'Enter your gross salary: we calculate ISSS, AFP and income tax for you.',
+    add: 'Add income',
+    created: 'Income added',
+    updated: 'Income updated',
+    deleted: 'Income deleted',
+    deleteDescription: "It will stop counting in your paydays. It can't be deleted if it has linked loans.",
+    namePlaceholder: 'E.g. Salary · Company Inc.',
+    modality: 'Type',
+    grossMonthly: 'Monthly gross amount',
+    grossRequired: 'Enter the gross amount',
+    payFrequency: 'Pay frequency',
+    payDay: 'Payday',
+    biweeklySplit: 'Split evenly between both paydays.',
+    depositedIn: 'Deposited in',
+    depositedInHint: 'To record each payment in one click.',
+    paymentCategory: 'Payment category',
+  },
+  deductions: {
+    grossMonthly: 'Monthly gross',
+    calculating: 'Calculating deductions…',
+    error: "Couldn't calculate the net amount.",
+    tax: 'Income tax (ISR)',
+    netMonthly: 'Monthly net',
+    perQuincena: 'Per payday',
+  },
+};

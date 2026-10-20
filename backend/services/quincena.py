@@ -6,6 +6,8 @@ Q2: día 15 → día 29 del mes actual
 import calendar
 from datetime import date, timedelta
 
+from services.card_reserves import reserve_flow
+
 
 def _clamp_day(year, month, day):
     last = calendar.monthrange(year, month)[1]
@@ -91,6 +93,18 @@ def _qindex(qnum, year, month):
 
 def _qindex_of(d):
     return _qindex(*_quincena_of(d))
+
+
+def _period_key(idx):
+    """Índice de quincena → 'YYYY-MM-Qn'."""
+    qnum, year, month = _qparts(idx)
+    return f'{year}-{month:02d}-Q{qnum}'
+
+
+def _period_index(period):
+    """'YYYY-MM-Qn' → índice de quincena."""
+    year, month, q = period.split('-')
+    return _qindex(int(q[1]), int(year), int(month))
 
 
 def _qparts(idx):
@@ -250,6 +264,7 @@ def get_quincena_overview(user_id, year, month):
     from models.recurring_service import RecurringService
     from models.transaction import Transaction
     from models.account import Account
+    from models.card_reserve_status import CardReserveStatus
 
     last_day = calendar.monthrange(year, month)[1]
     prev_year, prev_month = _prev_month(year, month)
@@ -336,6 +351,11 @@ def get_quincena_overview(user_id, year, month):
     reserves_q1, reserves_q2 = [], []
     card_plan = []
 
+    current_idx = _qindex_of(date.today())
+    saved_by_statement = {}
+    for row in CardReserveStatus.query.filter_by(user_id=user_id).all():
+        saved_by_statement.setdefault((row.card_id, row.payment_due_date), set()).add(_period_index(row.quincena_period))
+
     for card in cards:
         due_day = int(card.payment_due_day or 1)
         seen_dues = set()
@@ -354,14 +374,16 @@ def get_quincena_overview(user_id, year, month):
                 continue
 
             by_q = statement['by_quincena']
-            # Lo cargado en quincenas anteriores a la del pago ya se guardó;
-            # solo el resto sale de efectivo el día del pagón.
-            reserved_prior = round(sum(v for i, v in by_q.items() if i < idx_due), 2)
+            # Solo cuenta como guardado lo confirmado o lo aún planificado; lo no
+            # guardado de quincenas pasadas se arrastra hasta el día del pago.
+            flow, reserved_prior, carried_to_payment = reserve_flow(
+                by_q, idx_due, current_idx, saved_by_statement.get((card.id, payment_due_date), set()),
+            )
             cash_needed = round(statement['amount'] - reserved_prior, 2)
             due_qnum, due_qyear, due_qmonth = _qparts(idx_due)
             due_month_label = f'{due_qyear}-{due_qmonth:02d}'
 
-            touches_view = idx_due in in_view or any(i in in_view for i in by_q)
+            touches_view = idx_due in in_view or any(i in in_view for i in flow) or any(i in in_view for i in by_q)
             if not touches_view:
                 continue
 
@@ -369,17 +391,23 @@ def get_quincena_overview(user_id, year, month):
                 entry = {
                     **statement,
                     'reserved_prior': reserved_prior,
+                    'carried_in': carried_to_payment,
                     'cash_needed': cash_needed,
                 }
                 (credit_cards_q1 if idx_due == idx_q1 else credit_cards_q2).append(entry)
 
-            for i in sorted(by_q):
-                if i >= idx_due or i not in in_view:
+            for i, step in sorted(flow.items()):
+                if i not in in_view:
                     continue
                 reserve = {
                     'card_id': card.id,
                     'card_name': card.name,
-                    'amount': round(by_q[i], 2),
+                    'amount': step['amount'],
+                    'own_amount': step['own'],
+                    'carried_in': step['carried_in'],
+                    'need': step['need'],
+                    'status': step['status'],
+                    'period': _period_key(i),
                     'total': statement['amount'],
                     'charges': [c for c in statement['charges'] if c['quincena_index'] == i],
                     'cutoff_date': statement['cutoff_date'],
@@ -390,17 +418,15 @@ def get_quincena_overview(user_id, year, month):
                 (reserves_q1 if i == idx_q1 else reserves_q2).append(reserve)
 
             schedule = []
-            for i in sorted(set(by_q) | {idx_due}):
+            for i in sorted(set(flow) | {idx_due}):
                 qn, qy, qm = _qparts(i)
                 is_payment = i == idx_due
-                amount = cash_needed if is_payment else round(by_q[i], 2)
-                if not is_payment and amount <= 0:
-                    continue
                 schedule.append({
                     'quincena': qn,
                     'month': f'{qy}-{qm:02d}',
-                    'amount': amount,
+                    'amount': cash_needed if is_payment else flow[i]['need'],
                     'role': 'pago' if is_payment else 'reserva',
+                    'status': None if is_payment else flow[i]['status'],
                     'in_view': i in in_view,
                 })
             card_plan.append({
@@ -414,10 +440,9 @@ def get_quincena_overview(user_id, year, month):
                 'payment_quincena': due_qnum,
                 'payment_month': due_month_label,
                 'reserved_prior': reserved_prior,
+                'carried_in': carried_to_payment,
                 'cash_needed': cash_needed,
-                'reserve_in_view': round(sum(
-                    s['amount'] for s in schedule if s['role'] == 'reserva' and s['in_view']
-                ), 2),
+                'reserve_in_view': round(sum(flow[i]['amount'] for i in flow if i in in_view), 2),
                 'schedule': schedule,
             })
 

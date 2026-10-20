@@ -6,6 +6,9 @@ from utils.decorators import token_required
 
 categories_bp = Blueprint('categories', __name__)
 
+# 'registry' = clave del registro de iconos del frontend (p. ej. 'cart').
+VALID_ICON_TYPES = ('registry', 'emoji', 'bootstrap', 'svg')
+
 
 @categories_bp.route('/api/categories', methods=['GET'])
 @token_required
@@ -76,9 +79,9 @@ def create_category(user_id, user_email):
         if existing:
             return jsonify({'error': 'Category with this name already exists'}), 400
         
-        icon_type = data.get('iconType', 'bootstrap')
-        if icon_type not in ('bootstrap', 'svg'):
-            icon_type = 'bootstrap'
+        icon_type = data.get('iconType', 'registry')
+        if icon_type not in VALID_ICON_TYPES:
+            icon_type = 'registry'
 
         category = Category(
             user_id=user_id,
@@ -128,7 +131,7 @@ def update_category(user_id, user_email, category_id):
             category.color = data['color']
         if 'icon' in data:
             category.icon = data['icon']
-        if 'iconType' in data and data['iconType'] in ('bootstrap', 'svg'):
+        if 'iconType' in data and data['iconType'] in VALID_ICON_TYPES:
             category.icon_type = data['iconType']
 
         db.session.commit()

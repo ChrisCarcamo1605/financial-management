@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.income_source import IncomeSource
+from models.account import Account
+from models.category import Category
 from models import db
 from utils.decorators import token_required
 from services.salary_calc import calculate_deductions
@@ -9,6 +11,26 @@ income_sources_bp = Blueprint('income_sources', __name__)
 
 VALID_MODALITIES = ('planilla', 'servicios_profesionales', 'pension')
 VALID_SCHEDULES = ('monthly', 'biweekly')
+
+
+def _resolve_links(user_id, data):
+    """Valida account_id / category_id opcionales. Devuelve (cambios, error)."""
+    changes = {}
+    if 'account_id' in data:
+        account_id = data['account_id'] or None
+        if account_id and not Account.query.filter_by(id=account_id, user_id=user_id).first():
+            return None, 'Account not found'
+        changes['account_id'] = account_id
+    if 'category_id' in data:
+        category_id = data['category_id'] or None
+        if category_id:
+            category = Category.query.filter_by(id=category_id, user_id=user_id).first()
+            if not category:
+                return None, 'Category not found'
+            if category.type != 'income':
+                return None, 'La categoría de una fuente de ingreso debe ser de tipo ingreso'
+        changes['category_id'] = category_id
+    return changes, None
 
 
 @income_sources_bp.route('/api/income-sources', methods=['GET'])
@@ -77,8 +99,13 @@ def create_income_source(user_id, user_email):
     if pay_schedule not in VALID_SCHEDULES:
         return jsonify({'error': f'pay_schedule must be one of {VALID_SCHEDULES}'}), 400
 
+    links, error = _resolve_links(user_id, data)
+    if error:
+        return jsonify({'error': error}), 400
+
     try:
         source = IncomeSource(
+            **links,
             user_id=user_id,
             name=data['name'],
             modality=modality,
@@ -123,6 +150,13 @@ def update_income_source(user_id, user_email, source_id):
             source.pay_day = data['pay_day']
         if 'currency' in data:
             source.currency = data['currency']
+
+        links, error = _resolve_links(user_id, data)
+        if error:
+            db.session.rollback()
+            return jsonify({'error': error}), 400
+        for field, value in links.items():
+            setattr(source, field, value)
 
         db.session.commit()
         return jsonify(source.to_dict()), 200

@@ -25,7 +25,7 @@ class SavingsGoal(db.Model):
     day_q2 = db.Column(db.Integer, nullable=True)   # 16-31
     color = db.Column(db.String(7), nullable=True)
     icon = db.Column(db.Text, nullable=True)
-    icon_type = db.Column(db.String(10), nullable=False, default='emoji')
+    icon_type = db.Column(db.String(10), nullable=False, default='registry')
     active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

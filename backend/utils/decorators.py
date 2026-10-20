@@ -25,18 +25,3 @@ def token_required(f):
 
     return decorated
 
-
-def optional_token(f):
-    """Como token_required pero no falla si no hay token."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization', '')
-        parts = auth_header.split(' ')
-        if len(parts) == 2 and parts[0].lower() == 'bearer':
-            payload = AuthService.decode_access_token(parts[1])
-            if payload:
-                kwargs['user_id'] = payload['sub']
-                kwargs['user_email'] = payload.get('email')
-        return f(*args, **kwargs)
-
-    return decorated

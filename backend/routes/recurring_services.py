@@ -21,12 +21,23 @@ from utils.decorators import token_required
 
 recurring_services_bp = Blueprint('recurring_services', __name__)
 
-VALID_ICON_TYPES = ('bootstrap', 'svg', 'emoji')
+VALID_ICON_TYPES = ('registry', 'emoji', 'bootstrap', 'svg')
 
 
 def _clamp_day(year, month, day):
     last = calendar.monthrange(year, month)[1]
     return date(year, month, min(max(int(day or 1), 1), last))
+
+
+def _parse_month(value):
+    """'YYYY-MM' → (year, month); None → mes actual. Lanza ValueError si es inválido."""
+    if not value:
+        today = date.today()
+        return today.year, today.month
+    year, month = (int(x) for x in str(value).split('-')[:2])
+    if not 1 <= month <= 12:
+        raise ValueError('month out of range')
+    return year, month
 
 
 def _surcharge_total(service_id, period):
@@ -47,23 +58,62 @@ def _surcharge_total(service_id, period):
 @recurring_services_bp.route('/api/recurring-services', methods=['GET'])
 @token_required
 def get_recurring_services(user_id, user_email):
-    """Listar servicios recurrentes del usuario con paginación."""
+    """Listar servicios recurrentes del usuario con paginación.
+
+    Query params:
+        - page, per_page
+        - month: 'YYYY-MM' (default: mes actual). Cada servicio incluye
+          `month_status` para ese mes: { period, generated, transaction_id,
+          surcharge_total, total_amount }.
+    """
     try:
         from utils.pagination import paginate_query
 
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))
+        year, month = _parse_month(request.args.get('month'))
+        period = f'{year}-{month:02d}'
+
+        generated = {
+            t.recurring_service_id: t.id
+            for t in Transaction.query.filter(
+                Transaction.user_id == user_id,
+                Transaction.recurring_service_id.isnot(None),
+                extract('year', Transaction.date) == year,
+                extract('month', Transaction.date) == month,
+            )
+        }
+        surcharges = {}
+        for row in ServiceSurcharge.query.filter(
+            ServiceSurcharge.user_id == user_id,
+            db.or_(ServiceSurcharge.period == period, ServiceSurcharge.period.is_(None)),
+        ):
+            surcharges[row.recurring_service_id] = surcharges.get(row.recurring_service_id, 0.0) + float(row.amount)
+
+        def with_status(service):
+            data = service.to_dict()
+            extra = round(surcharges.get(service.id, 0.0), 2)
+            data['month_status'] = {
+                'period': period,
+                'generated': service.id in generated,
+                'transaction_id': generated.get(service.id),
+                'surcharge_total': extra,
+                'total_amount': round(float(service.amount) + extra, 2),
+            }
+            return data
 
         query = RecurringService.query.filter_by(user_id=user_id).order_by(
             RecurringService.day_of_month, RecurringService.name
         )
         return paginate_query(
             query=query,
-            model_to_dict_fn=lambda s: s.to_dict(),
+            model_to_dict_fn=with_status,
             page=page,
             per_page=per_page,
             max_per_page=200,
         )
+    except ValueError:
+        return jsonify({'error': 'Invalid month. Use YYYY-MM'}), 400
     except Exception as e:
         return jsonify({'error': f'Error fetching recurring services: {str(e)}'}), 500
 
@@ -83,9 +133,9 @@ def create_recurring_service(user_id, user_email):
     if data.get('amount') is None:
         return jsonify({'error': 'amount is required'}), 400
 
-    icon_type = data.get('iconType', 'bootstrap')
+    icon_type = data.get('iconType', 'registry')
     if icon_type not in VALID_ICON_TYPES:
-        icon_type = 'bootstrap'
+        icon_type = 'registry'
 
     try:
         # Validar relaciones opcionales
@@ -187,13 +237,8 @@ def generate_recurring_transactions(user_id, user_email):
     sido generado ya ese mes. Devuelve { created: [...], skipped: [...] }.
     """
     data = request.get_json() or {}
-    month_str = data.get('month')
     try:
-        if month_str:
-            year, month = (int(x) for x in month_str.split('-')[:2])
-        else:
-            today = date.today()
-            year, month = today.year, today.month
+        year, month = _parse_month(data.get('month'))
     except (ValueError, TypeError):
         return jsonify({'error': 'Invalid month. Use YYYY-MM'}), 400
 
@@ -265,13 +310,8 @@ def generate_single(user_id, user_email, service_id):
       422 → { status: "missing_config", reason: str }
     """
     data = request.get_json() or {}
-    month_str = data.get('month')
     try:
-        if month_str:
-            year, month = (int(x) for x in month_str.split('-')[:2])
-        else:
-            today = date.today()
-            year, month = today.year, today.month
+        year, month = _parse_month(data.get('month'))
     except (ValueError, TypeError):
         return jsonify({'error': 'Invalid month. Use YYYY-MM'}), 400
 
