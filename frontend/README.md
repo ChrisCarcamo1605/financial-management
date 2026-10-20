@@ -10,13 +10,42 @@ pnpm typecheck && pnpm lint
 pnpm build
 ```
 
+## Modo demo (sin backend)
+
+```bash
+pnpm dev:demo      # demo en local
+pnpm build:demo    # sitio estático en dist/, listo para cualquier hosting
+```
+
+Todo corre en el navegador: los datos de ejemplo se generan con fechas relativas a hoy y los
+cambios de cada visitante se guardan en su `localStorage` (botón "Reiniciar demo" para volver
+al inicio). El código del demo va en un chunk aparte y el build normal no lo incluye.
+
+**Desplegar**: cualquier hosting estático con *fallback* a `index.html`.
+- Vercel: importar el repo con raíz `frontend` (usa `vercel.json`).
+- Netlify / Cloudflare Pages: raíz `frontend`, comando `pnpm build:demo`, salida `dist`
+  (el *fallback* está en `public/_redirects`).
+
+**Paridad con la API**: la lógica de negocio del demo (`src/data/demo/logic`) es un port de los
+servicios de Python. `parity.test.ts` compara sus resultados con respuestas reales de la API
+guardadas en `src/data/demo/__fixtures__/parity.json`. Si cambias una regla en el backend,
+regenera el fixture y corre los tests:
+
+```bash
+docker compose up -d db && cd backend
+DATABASE_URL=postgresql://caudal:caudal@localhost:5433/caudal .venv/bin/python seed.py --reset
+DATABASE_URL=postgresql://caudal:caudal@localhost:5433/caudal .venv/bin/python scripts/export_demo_parity.py
+cd ../frontend && pnpm test
+```
+
 ## Arquitectura
 
 ```
 src/
   app/            providers, router, navegación, acciones rápidas globales
   data/           contrato de datos (types.ts), puerto DataSource (source.ts),
-                  implementación HTTP (http/), hooks de lectura y mutaciones
+                  implementación HTTP (http/), demo en el navegador (demo/),
+                  hooks de lectura y mutaciones
   features/<x>/   una carpeta por dominio: página, formularios y lógica propia
   components/ui   primitivas shadcn (generadas, no editar a mano salvo ajustes)
   components/shared, charts, layout   piezas reutilizables de la app

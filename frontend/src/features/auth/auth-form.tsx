@@ -11,6 +11,7 @@ import { errorText } from '@/data/mutations';
 import { useDataSource } from '@/data/provider';
 import type { Credentials } from '@/data/types';
 import { usePreferences } from '@/features/preferences/preferences-provider';
+import { useDemoMode } from '@/app/demo-mode';
 import { useAuth } from './auth-provider';
 import { AuthLayout } from './auth-layout';
 
@@ -23,6 +24,7 @@ const SWITCH_TO = { login: '/registro', register: '/login' } as const;
 export function AuthForm({ mode }: AuthFormProps) {
   const auth = useAuth();
   const source = useDataSource();
+  const demo = useDemoMode();
   const { t: dictionary, preferences } = usePreferences();
   const t = dictionary.shell.auth;
   const copy = t[mode];
@@ -53,6 +55,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   return (
     <AuthLayout title={copy.title} description={copy.description}>
       <form onSubmit={onSubmit} noValidate className="grid gap-4">
+        {demo && <p className="rounded-md bg-accent px-3 py-2 text-sm">{dictionary.shell.demo.loginHint}</p>}
         <Field label={t.email} error={errors.email?.message}>
           {(id) => <Input id={id} type="email" autoComplete="email" placeholder={t.emailPlaceholder} aria-invalid={!!errors.email || undefined} {...register('email')} />}
         </Field>

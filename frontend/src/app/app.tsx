@@ -9,6 +9,8 @@ import type { DataSource } from '@/data/source';
 import { ApiError } from '@/data/http/client';
 import { AuthProvider } from '@/features/auth/auth-provider';
 import { PreferencesProvider, usePreferences } from '@/features/preferences/preferences-provider';
+import type { DemoControls } from '@/data/demo';
+import { DemoModeProvider } from './demo-mode';
 import { router } from './router';
 
 function createQueryClient() {
@@ -29,9 +31,10 @@ function ThemedToaster() {
   return <Toaster theme={isDark ? 'dark' : 'light'} position="bottom-right" richColors closeButton offset={{ bottom: 88 }} mobileOffset={{ bottom: 88 }} />;
 }
 
-export function App({ source }: { source: DataSource }) {
+export function App({ source, demo }: { source: DataSource; demo?: DemoControls }) {
   const [queryClient] = useState(createQueryClient);
   return (
+    <DemoModeProvider demo={demo}>
     <DataSourceProvider source={source}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
@@ -46,5 +49,6 @@ export function App({ source }: { source: DataSource }) {
         </AuthProvider>
       </QueryClientProvider>
     </DataSourceProvider>
+    </DemoModeProvider>
   );
 }

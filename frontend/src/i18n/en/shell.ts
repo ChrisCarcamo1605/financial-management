@@ -95,4 +95,13 @@ export const shell: typeof es = {
   language: {
     label: 'Language',
   },
+  demo: {
+    badge: 'Demo mode',
+    description: 'Sample data. Your changes are saved only in this browser.',
+    reset: 'Reset demo',
+    resetTitle: 'Reset the demo',
+    resetDescription: 'Your changes are erased and the sample data comes back.',
+    resetConfirm: 'Reset',
+    loginHint: "It's a demo: log in with any email and password.",
+  },
 };

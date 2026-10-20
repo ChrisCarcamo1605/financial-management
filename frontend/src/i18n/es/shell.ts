@@ -94,4 +94,13 @@ export const shell = {
   language: {
     label: 'Idioma',
   },
+  demo: {
+    badge: 'Modo demo',
+    description: 'Datos de ejemplo. Tus cambios se guardan solo en este navegador.',
+    reset: 'Reiniciar demo',
+    resetTitle: 'Reiniciar el demo',
+    resetDescription: 'Se borran tus cambios y vuelven los datos de ejemplo.',
+    resetConfirm: 'Reiniciar',
+    loginHint: 'Es un demo: entra con cualquier correo y contraseña.',
+  },
 };

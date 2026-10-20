@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/features/preferences/preferences-provider';
 import { Brand } from './brand';
 import { CommandMenu } from './command-menu';
+import { DemoBanner } from './demo-banner';
 import { UserMenu } from './user-menu';
 
 function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
@@ -128,6 +129,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-col">
+        <DemoBanner />
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur md:px-8">
           <Brand className="md:hidden" />
           <Button

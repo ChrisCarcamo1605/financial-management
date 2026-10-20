@@ -19,7 +19,7 @@ export default tseslint.config(
   },
   {
     // shadcn exporta variantes junto al componente; los providers exportan su hook.
-    files: ['src/components/ui/**', 'src/**/*provider.tsx', 'src/app/quick-actions.tsx', 'src/app/router.tsx', 'src/components/shared/confirm.tsx'],
+    files: ['src/components/ui/**', 'src/**/*provider.tsx', 'src/app/quick-actions.tsx', 'src/app/demo-mode.tsx', 'src/app/router.tsx', 'src/components/shared/confirm.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
 );

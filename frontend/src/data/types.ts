@@ -303,6 +303,7 @@ export interface Loan {
   category_name: string | null;
   category_color: string | null;
   category_icon: string | null;
+  category_icon_type: IconType | null;
   account_name: string | null;
   payments: LoanPayment[];
   finished_early: boolean;
