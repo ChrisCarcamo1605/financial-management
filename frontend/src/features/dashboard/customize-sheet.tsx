@@ -106,31 +106,33 @@ function SortableWidgetRow({ item, isFirst, isLast, onMove, onToggle, onResize }
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('grid gap-3 rounded-lg border bg-card p-3', isDragging && 'relative z-10 shadow-lg', !item.visible && 'bg-muted/50')}
+      className={cn('flex rounded-lg border bg-card', isDragging && 'relative z-10 shadow-lg', !item.visible && 'bg-muted/50')}
     >
-      <div className="flex items-start gap-2">
-        <button
-          type="button"
-          className="mt-0.5 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
-          aria-label={t.reorder(title)}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="size-4" />
-        </button>
-        <label htmlFor={switchId} className="min-w-0 flex-1 cursor-pointer">
-          <span className={cn('block text-sm font-medium', !item.visible && 'text-muted-foreground')}>{title}</span>
-          <span className="block text-xs text-muted-foreground">{description}</span>
-        </label>
-        <Switch id={switchId} checked={item.visible} onCheckedChange={onToggle} />
-      </div>
-      <div className="flex items-center gap-2 pl-8">
-        {!widget.fullOnly && (
-          <Segmented label={t.widthLabel(title)} size="sm" className="h-8 w-44" options={sizeOptions} value={item.size} onChange={onResize} />
-        )}
-        <div className="ml-auto flex gap-1">
-          <Button variant="ghost" size="icon-sm" disabled={isFirst} onClick={() => onMove(-1)} aria-label={t.moveUp(title)}><ChevronUp /></Button>
-          <Button variant="ghost" size="icon-sm" disabled={isLast} onClick={() => onMove(1)} aria-label={t.moveDown(title)}><ChevronDown /></Button>
+      <button
+        type="button"
+        className="flex w-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-l-lg text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset active:cursor-grabbing"
+        aria-label={t.reorder(title)}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <div className="grid min-w-0 flex-1 gap-3 py-3 pr-3 pl-1">
+        <div className="flex items-start gap-2">
+          <label htmlFor={switchId} className="min-w-0 flex-1 cursor-pointer">
+            <span className={cn('block text-sm font-medium', !item.visible && 'text-muted-foreground')}>{title}</span>
+            <span className="block text-xs text-muted-foreground">{description}</span>
+          </label>
+          <Switch id={switchId} checked={item.visible} onCheckedChange={onToggle} />
+        </div>
+        <div className="flex items-center gap-2">
+          {!widget.fullOnly && (
+            <Segmented label={t.widthLabel(title)} size="sm" className="h-8 w-44" options={sizeOptions} value={item.size} onChange={onResize} />
+          )}
+          <div className="ml-auto flex gap-1">
+            <Button variant="ghost" size="icon-sm" disabled={isFirst} onClick={() => onMove(-1)} aria-label={t.moveUp(title)}><ChevronUp /></Button>
+            <Button variant="ghost" size="icon-sm" disabled={isLast} onClick={() => onMove(1)} aria-label={t.moveDown(title)}><ChevronDown /></Button>
+          </div>
         </div>
       </div>
     </li>
